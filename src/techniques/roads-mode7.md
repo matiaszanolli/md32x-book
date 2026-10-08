@@ -20,7 +20,7 @@ After Burner Complete's sky, sea and land are flat colours. The detail is all sc
 - **A split off the screen** gives a line of one colour, drawn with one fill.
 - **The fills also clear the screen**, so the frame buffer is never cleared separately ([Auto fill](../32x/vdp.md#auto-fill)).
 
-In a PicoDrive profile of 6,000 frames over sea and land stages, this is the only background routine that runs, and over a third of the Master's time is spent in its loops waiting for fills to finish <span class="tag emulator">emulator</span> [AB32X, PC profile in PicoDrive]. A tilted horizon over flat colour costs 448 fills per frame, and no pixel writes by the CPU at all.
+In a PicoDrive profile of 6,000 frames over sea and land stages, this is the only background routine that runs, and over a third of the Master's time is spent in its loops waiting for fills to finish <span class="tag emulator">emulator</span> [AB32X, PC profile in PicoDrive]. A tilted horizon over flat colour costs 448 fills per picture, and no pixel writes by the CPU at all.
 
 ### A runway from runs
 
@@ -28,11 +28,11 @@ The same program has a second background routine, and it draws a runway on flat 
 
 - **One word per line** at `0x06007474`. A line with bit 11 set is one fill in a colour from a 16-entry table, which shades the sky in 14 steps. Any other line holds a depth row number, and the numbers step faster towards the bottom of the screen, as *z*(*y*) does.
 - **A pattern per depth row:** a list of runs, each a colour number in the top 4 bits and a length in the low 12. Across a line: ground, edge, surface, line, surface, centre line, surface, line, surface, edge, ground. Nearer rows have wider runs, so the strip narrows towards the horizon.
-- **A phase per row** gives how far into the pattern the line starts, which places the runway sideways. The tables are rebuilt every frame.
+- **A phase per row** gives how far into the pattern the line starts, which places the runway sideways. The tables are rebuilt for every picture.
 - **A colour group per row** turns the four colour numbers into palette entries. Two groups differ only in the lines, white in one and surface grey in the other. Alternating them by depth band dashes the centre line, and the dashes run towards the camera as the plane moves: the stripes of the arcade racers below, applied to a runway.
 - **Runs of 28 pixels or more** go to auto fill. Shorter ones are written with byte and word stores.
 
-The 68000 picks the routine for each frame: command 7 selects the split fills, and command 8 selects the runway, followed by commands 9 and 10 with its position and scroll [AB32X, 68000 code at `$1EDBE`-`$1EE30`; Master command handlers at `0x0600379E`-`0x060037C6`]. Two kinds of stage use it <span class="tag emulator">emulator</span>:
+The 68000 picks the routine for each picture: command 7 selects the split fills, and command 8 selects the runway, followed by commands 9 and 10 with its position and scroll [AB32X, 68000 code at `$1EDBE`-`$1EE30`; Master command handlers at `0x0600379E`-`0x060037C6`]. Two kinds of stage use it <span class="tag emulator">emulator</span>:
 
 - **The base landings, stages 5 and 13.** The plane lands on the runway, rolls along it while supply trucks come alongside, and takes off again. The routine draws all of it, about 1,000 frames in PicoDrive, before stage 6 goes back to the split fills.
 - **The canyons, stages 8 and 17.** The stage script turns the routine on shortly after the start and off at the end. The runway's pattern then starts beyond the right edge of the screen, so every ground line is a single run. All the routine shows is the shaded sky over plain ground, and the horizon stays level. The canyon walls are scaled sprites.
@@ -78,8 +78,8 @@ The homebrew notes list an OutRun-style 32X port with a segmented road, forks an
 A homebrew racing game draws its road in 3D, as strips of quadrilaterals along the track. Its optimisation notes give three measured gains <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md]:
 
 - **Walk each strip as one shape, line by line.** The strip's two long edges are shared from one segment to the next. Filling it line by line needs about 6 divides per segment, against about 30 when each segment was cut into 10 triangles.
-- **Fill only what the road does not cover.** The road filler records each line's left and right edge, and the grass is drawn only beside it. Overdraw fell from 1.36 to 1.05 times the screen, about 21,000 fewer pixel writes per frame.
-- **Inline the span fill.** At about 1,600 spans per frame, calling a span routine and clipping again inside it took 62% of the fill time.
+- **Fill only what the road does not cover.** The road filler records each line's left and right edge, and the grass is drawn only beside it. Overdraw fell from 1.36 to 1.05 times the screen, about 21,000 fewer pixel writes per picture.
+- **Inline the span fill.** At about 1,600 spans per picture, calling a span routine and clipping again inside it took 62% of the fill time.
 
 ### The Mega Drive's own tools
 

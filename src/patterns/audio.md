@@ -18,7 +18,7 @@ The YM2612 and PSG make sound from almost no data, but only the sounds they can 
 | Game | Music | PWM | Who feeds PWM | How a sound is requested |
 |------|-------|-----|---------------|--------------------------|
 | Mortal Kombat II | A 2 KB Z80 program (not traced further) | 2 voices of 6-bit samples | The Slave, in its PWM interrupt | One word in a port, fire and forget |
-| Star Wars Arcade | Sequenced by the 68000; the 68000 writes the PSG itself, and a 409-byte Z80 program writes FM registers and DAC samples for it | 1 voice, codebook-compressed | The Slave, in its PWM interrupt, between drawing jobs | A Master command, passed to the Slave once a frame |
+| Star Wars Arcade | Sequenced by the 68000; the 68000 writes the PSG itself, and a 409-byte Z80 program writes FM registers and DAC samples for it | 1 voice, codebook-compressed | The Slave, in its PWM interrupt, between drawing jobs | A Master command, passed to the Slave once a picture |
 | After Burner Complete | A 5,888-byte Z80 program for FM and PSG, and a sequencer on the Slave for PWM | 16 voices, interpolated and panned | The Slave's main loop, through a ring the interrupt empties | Every request goes to both the Z80 and the Slave |
 | Knuckles' Chaotix | Not traced | 4 voices, panned, mixed from on-chip RAM | The Slave, in its PWM interrupt | One port per voice |
 | Motocross Championship | A 6,278-byte Z80 program | 2 voices, one per speaker | **The 68000**, in its line interrupt | The 68000's own variables |
@@ -70,7 +70,7 @@ The game logic runs on the 68000 in most of these programs, so every sound start
 - **One word, fire and forget.** Mortal Kombat II writes the sound number with a "new" bit into one port. The Slave starts it and clears the word. The 68000 never waits, so a second request in the same moment replaces the first ([Bulk data through the ports](../32x/communication.md#bulk-data-through-the-ports)) [MK2, 68000 code at `$00E01A`].
 - **One port per voice.** Chaotix gives each of its four voices its own port. The low byte is the sound number and the high byte holds a 4-bit left and a 4-bit right volume, so the request carries its own stereo position. The Slave reads each port twice until two reads agree, then clears it, which guards against catching a word half written ([The one hazard](../32x/communication.md#the-one-hazard-a-word-that-changes-while-you-read-it)) [CHAOTIX, cartridge `$07FD2C`, run at `0xC000012C`]. Voices never compete for one port, but the 68000 must choose the voice.
 - **A command by interrupt.** After Burner Complete sends each request to the Slave as a command word with the CMD interrupt ([The CMD interrupt](../32x/communication.md#the-cmd-interrupt)), so the Slave never polls. The 68000 waits only if the previous command has not been taken yet [AB32X, 68000 code at `$009366`].
-- **Once a frame, with a priority.** Star Wars Arcade's 68000 sends the Master a command. The Master writes the sound's address and priority into shared SDRAM, and the Slave looks once a frame: it starts the new sound only if its priority is at least that of the one playing, and otherwise drops it [SWA, SH-2 code at `0x060011FA`, `0x060007E4`-`0x06000878`]. One voice, and the important sound wins.
+- **Once a picture, with a priority.** Star Wars Arcade's 68000 sends the Master a command. The Master writes the sound's address and priority into shared SDRAM, and the Slave looks once a picture: it starts the new sound only if its priority is at least that of the one playing, and otherwise drops it [SWA, SH-2 code at `0x060011FA`, `0x060007E4`-`0x06000878`]. One voice, and the important sound wins.
 - **To every driver at once.** After Burner Complete's request routine puts each sound number into the first free slot of an 8-byte queue in Z80 RAM and also sends it to the Slave. Each driver plays whatever parts of that sound it owns [AB32X, 68000 code at `$009366`-`$0093C0`].
 
 A sequence number in the request word makes a repeated request fire even when the value is the same as last time ([Sequence numbers](../32x/communication.md#repeating-a-command-sequence-numbers)). One homebrew game sends music and effects through separate ports this way <span class="tag emulator">emulator</span> [S32X-SKILL, audio.md].
@@ -134,7 +134,7 @@ The last two leave the Mega Drive sound chips free for effects or for a second l
 
 - FM and PSG make music from tiny data. PWM plays anything, but needs a CPU every few samples and ROM for every sound.
 - Give PWM to the Slave, ideally as its only job and from on-chip RAM, as Chaotix does. Feeding it from the 68000 costs about a third of the 68000 and stutters every vertical blank.
-- Choose how requests reach the sound CPU: one port per voice, a CMD interrupt, or a once-a-frame pick-up with a priority. Each needs a rule for when two requests meet.
+- Choose how requests reach the sound CPU: one port per voice, a CMD interrupt, or a once-a-picture pick-up with a priority. Each needs a rule for when two requests meet.
 - If music is split between drivers, tick them from one interrupt.
 - Decide in advance which sound takes a voice when all are busy.
 - Leave headroom between FM and PWM, and keep the silence level fixed.

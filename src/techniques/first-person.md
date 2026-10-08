@@ -2,7 +2,7 @@
 
 There are two ways to draw a first-person world on a 32X, and both appear in the book's sources:
 
-- **A grid raycaster**: the world is a grid of cells, and one ray per screen column finds the nearest wall. It is simple, and fast enough for a dungeon crawler at 30 frames per second on one SH-2.
+- **A grid raycaster**: the world is a grid of cells, and one ray per screen column finds the nearest wall. It is simple, and fast enough for a dungeon crawler at 30 pictures a second on one SH-2.
 - **Doom's BSP renderer**: the world is any arrangement of walls at any angle and floors at any height, sorted into a binary space partition. It is far more general and far more work. d32xr, a Doom engine for the 32X, runs it across both SH-2s.
 
 Most of this chapter follows d32xr's source, read at the commit given in the bibliography [D32XR]. The raycaster comes from a homebrew game described in S32X-SKILL, measured in PicoDrive <span class="tag emulator">emulator</span>. Neither is a retail game; Sega's own *Doom* for the 32X is not among the book's sources.
@@ -14,11 +14,11 @@ Both engines rest on one observation. Walls are vertical, so every pixel in one 
 - **Walls are drawn as columns.** One divide per column gives the scale; then the texture is stepped down the column at a constant rate, with no division per pixel.
 - **Floors and ceilings are drawn as rows (spans).** One distance per row, then constant steps across it.
 
-All the expensive maths happens once per column or once per row. What is left per pixel is a texture read, a light look-up and a store. d32xr's wall-column loop does two pixels in 16 SH-2 instructions: for each pixel, it reads a texel, looks it up in the light table, stores it, steps the texture position, and steps the frame buffer pointer down one line [D32XR, sh2_draw.s `I_DrawColumnA`]. A 320 × 224 screen is 71,680 pixels, so even eight instructions a pixel is more than half a million per frame. That is why the tricks below are all about doing fewer pixels or cheaper ones.
+All the expensive maths happens once per column or once per row. What is left per pixel is a texture read, a light look-up and a store. d32xr's wall-column loop does two pixels in 16 SH-2 instructions: for each pixel, it reads a texel, looks it up in the light table, stores it, steps the texture position, and steps the frame buffer pointer down one line [D32XR, sh2_draw.s `I_DrawColumnA`]. A 320 × 224 screen is 71,680 pixels, so even eight instructions a pixel is more than half a million per picture. That is why the tricks below are all about doing fewer pixels or cheaper ones.
 
 ## A grid raycaster
 
-A homebrew dungeon crawler shows the simplest design that works, at 30 frames per second on one SH-2 <span class="tag emulator">emulator</span> [S32X-SKILL, software-3d.md]:
+A homebrew dungeon crawler shows the simplest design that works, at 30 pictures a second on one SH-2 <span class="tag emulator">emulator</span> [S32X-SKILL, software-3d.md]:
 
 - **One ray per column.** Each ray steps through the map grid cell by cell (a DDA) until it meets a wall. One division, ray length to perpendicular distance, gives the wall's height on screen. The SH-2's division unit does it in about 39 clocks, which is fine once per column ([Division unit](../sh2/divu.md)).
 - **Cast at a quarter of the pixels.** The game casts into a 128 × 80 buffer in SDRAM, then expands it two by two into a 256 × 160 view. Two source pixels *a*, *b* become one longword *aabb*, written to two rows, so the expand is aligned 32-bit stores of four pixels each. The project calls casting at quarter resolution its single biggest saving.
@@ -106,7 +106,7 @@ d32xr has several options for trading picture quality for speed:
 
 - **Half the columns.** In low-resolution mode the view is rendered half as wide, and every drawer writes each texel to two pixels [D32XR, r_main.c].
 - **Cheaper floors.** The default detail level draws floors at half horizontal resolution. The lowest, called "potato", fills each floor span with one colour: a fixed texel of the floor's texture, through the plane's light table, written two pixels per 16-bit store. Floor textures are then left out of the texture cache altogether [D32XR, r_main.c, r_phase7.c, marsdraw.c, r_phase9.c].
-- **4-bit textures.** A texture can store two texels per byte, with its own table of 16 colours at 33 light levels at the end of its data. The drawer halves the texel index with a single shift, which leaves the low bit in the T flag to choose between the two halves of the byte. The nibbles are stored swapped to save an instruction. Such textures take half the ROM, and are expanded to 8 bits when copied into the texture cache in SDRAM [D32XR, sh2_draw4b.s, r_main.c, r_phase9.c]. See [Caches with a lifetime in frames](memory.md#caches-with-a-lifetime-in-frames).
+- **4-bit textures.** A texture can store two texels per byte, with its own table of 16 colours at 33 light levels at the end of its data. The drawer halves the texel index with a single shift, which leaves the low bit in the T flag to choose between the two halves of the byte. The nibbles are stored swapped to save an instruction. Such textures take half the ROM, and are expanded to 8 bits when copied into the texture cache in SDRAM [D32XR, sh2_draw4b.s, r_main.c, r_phase9.c]. See [Caches with a lifetime in pictures](memory.md#caches-with-a-lifetime-in-pictures).
 - **Mipmaps**, smaller copies of textures for distant walls and floors, are supported but compiled out by default [D32XR, r_local.h, r_data.c].
 - **Both SH-2s.** The renderer's stages are shared between the two CPUs ([Splitting work across three CPUs](../patterns/cpu-split.md#both-sh-2s-on-every-stage)).
 

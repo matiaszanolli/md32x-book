@@ -6,7 +6,7 @@ Four questions decide the format:
 
 1. **Which CPU decompresses it?** The 68000 has 16-bit registers and slow shifts; an SH-2 has 32-bit registers and a cache, and can read the cartridge directly.
 2. **Where does the output go?** RAM is easy. VRAM and the 32X frame buffer are not: each is behind a port or has write rules of its own.
-3. **Is it decoded once, or every time it is drawn?** A level loaded once can use a slow, tight format. A sprite drawn every frame needs a format the drawing loop can read directly, or a cache of decoded copies.
+3. **Is it decoded once, or every time it is drawn?** A level loaded once can use a slow, tight format. A sprite drawn in every picture needs a format the drawing loop can read directly, or a cache of decoded copies.
 4. **Must it keep pace with something?** Sound is decoded inside an interrupt, sample by sample, and needs a format whose cost per sample is fixed.
 
 | Format | Game | Decoded by | Into | Notes |

@@ -73,7 +73,7 @@ d32xr is the worked example, in a build that declares a 5 MB ROM [D32XR, `crt0.s
 - **The 68000 does the switching.** The SH-2 posts a command with the area and page numbers through a communication port and waits. The 68000 masks its interrupts, parks both SH-2s off the cartridge, sets RV, writes the page number to the area's register, clears RV and releases them [D32XR, `marshw.c`, `src-md/crt0.s`].
 - **The ROM size comes from the header.** The SH-2 code reads the start and end addresses at `$1A0` and `$1A4` and only translates pointers when the ROM is larger than 4 MB [D32XR, `marshw.c`].
 
-Each switch stops both SH-2s for a moment. When a level loads, d32xr notes which page holds the level's wall segments, which its renderer walks constantly, and selects that page again at the start of every frame [D32XR, `p_setup.c`, `r_main.c`].
+Each switch stops both SH-2s for a moment. When a level loads, d32xr notes which page holds the level's wall segments, which its renderer walks constantly, and selects that page again at the start of every picture it draws [D32XR, `p_setup.c`, `r_main.c`].
 
 ## Real cartridges, development boards and flash carts
 

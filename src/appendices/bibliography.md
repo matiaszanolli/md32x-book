@@ -197,7 +197,7 @@ notaz (author of PicoDrive), *testpico*, a test ROM for the Mega Drive and the 3
 Articles about the games, written for players. Cited for what they say, not as measurements: none says how its figures were obtained.
 
 ### HG101-AB
-Kurt Kalata, *After Burner*, Hardcore Gaming 101, 17 August 2017, [hardcoregaming101.net/after-burner](https://www.hardcoregaming101.net/after-burner/) (read 6 October 2026). A history of the series and its ports. Says the 32X version runs at 30 frames per second against the arcade original's 60.
+Kurt Kalata, *After Burner*, Hardcore Gaming 101, 17 August 2017, [hardcoregaming101.net/after-burner](https://www.hardcoregaming101.net/after-burner/) (read 6 October 2026). A history of the series and its ports. Says the 32X version draws 30 pictures a second against the arcade original's 60.
 
 ### REGISTER-AB
 Giles Hill, *After Burner: Sega's jet-fighting, puke-inducing arcade marvel*, The Register, 15 October 2015, [theregister.com](https://www.theregister.com/on-prem/2015/10/15/after-burner-segas-jet-fighting-puke-inducing-arcade-marvel/1395210) (read 6 October 2026). Says the X Board drew up to 256 sprites in each frame, all output at 60 frames per second.

@@ -121,7 +121,7 @@ The CPU then wakes up 70 times a second instead of 22,000. The catch: per Sega, 
 
 The 68000 can feed PWM too. d32xr's 68000 main loop plays the samples of its VGM music: while the mono register is not FULL, it writes the next 8-bit sample, converted to signed and added to the centre (*c* / 2) [D32XR, src-md/crt0.s, src-md/vgm.c]. It sets control to `$05` from the 68000 side, which leaves TM and RTP as the SH-2s left them. Polling only works while the loop comes round faster than three samples; anything that holds the 68000 up stalls the sound.
 
-S32X-SKILL's tracker player polls in the same way from an SH-2. Its notes warn that a full frame buffer redraw every frame then starves the FIFO into a frame-rate buzz [S32X-SKILL, audio.md] <span class="tag emulator">emulator</span>.
+S32X-SKILL's tracker player polls in the same way from an SH-2. Its notes warn that a full frame buffer redraw for every picture then starves the FIFO into a frame-rate buzz [S32X-SKILL, audio.md] <span class="tag emulator">emulator</span>.
 
 Motocross Championship, a retail game, feeds PWM from the 68000's line interrupt instead, set to every second line. Each interrupt waits for room and writes one sample to each channel, one voice per speaker, at a cycle of `$5B9` (15,718 Hz). It cost about 30% of the 68000 in a PicoDrive run, and since the line interrupt stops during vertical blank, the FIFO runs dry for about 2.4 ms in every frame <span class="tag emulator">emulator</span> [MCX, 68000 code at `$00081A`-`$0008C6`, `$000E18`]. Details in [Audio across PWM, FM and PSG](../patterns/audio.md#motocross-championship-pwm-from-the-68000).
 

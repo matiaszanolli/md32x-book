@@ -45,7 +45,7 @@ Scaling a sprite means walking the destination rectangle and, for each pixel, pi
 
 ### After Burner Complete's scaler
 
-After Burner Complete draws up to 92 scaled sprites a frame during play, and up to 143 on its title screen, at 30 frames per second <span class="tag emulator">emulator</span> [AB32X, sprite list length watched in PicoDrive over 2,000 frames of play and 500 of the title]. Its scaler is a good model [AB32X, SH-2 code at `0x06006778`-`0x06006A44`]:
+After Burner Complete draws up to 92 scaled sprites a picture during play, and up to 143 on its title screen, at 30 pictures a second <span class="tag emulator">emulator</span> [AB32X, sprite list length watched in PicoDrive over 2,000 frames of play and 500 of the title]. Its scaler is a good model [AB32X, SH-2 code at `0x06006778`-`0x06006A44`]:
 
 **Four instructions per two pixels.** The horizontal position is kept in two registers: the fraction in the top half of one, the integer, in units of two pixels, in another. Each step of the loop is:
 
@@ -77,7 +77,7 @@ The double mode draws large sprites, close to the camera, at half resolution: ha
 
 ### Scaling the whole layer: the line table does the vertical half
 
-When the whole picture is scaled, as in a zoom on a map, the line table makes the vertical axis free. Draw each *distinct* source row once into the frame buffer, and point every display line that shows it at the same row. Aerobiz Ultimate measured this on its world map: the time per frame is in proportion to the number of source rows drawn, not to the lines shown <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-035]:
+When the whole picture is scaled, as in a zoom on a map, the line table makes the vertical axis free. Draw each *distinct* source row once into the frame buffer, and point every display line that shows it at the same row. Aerobiz Ultimate measured this on its world map: the time per picture is in proportion to the number of source rows drawn, not to the lines shown <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-035]:
 
 | Zoom | Source rows drawn | Frames per picture |
 |------|-------------------|--------------------|
@@ -97,7 +97,7 @@ marsdev's sample doubles the width of a direct colour picture in place, line by 
 
 To rotate and scale a picture, work backwards: for each screen pixel, find the source pixel that lands there. Along a screen row the source position moves by a fixed (*du*/*dx*, *dv*/*dx*), and from one row to the next by (*du*/*dy*, *dv*/*dy*). For a rotation by *t* at scale *s* these are cos *t* / *s*, sin *t* / *s*, −sin *t* / *s* and cos *t* / *s*. Kept in 16.16, a row of pixels needs two additions per pixel and no multiply [AU-NOTES, disasm/sh2/master/fb.c].
 
-It costs much more than scaling. Aerobiz Ultimate measured a full-screen rotation at 5.75 frames per picture, against 2.13 for a straight copy of the same source, about 10 frames per second <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-037]. Three reasons:
+It costs much more than scaling. Aerobiz Ultimate measured a full-screen rotation at 5.75 frames per picture, against 2.13 for a straight copy of the same source, about 10 pictures a second <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-037]. Three reasons:
 
 - **No line can be shared.** Once the source row changes along a screen row, no two screen lines show the same pixels, so the line table trick is lost and every line is drawn.
 - **Each pixel needs its own source row,** so a multiply (or a table) per pixel.
@@ -113,8 +113,8 @@ Aerobiz Ultimate opens with the SEGA logo spinning in from a distance [AU-NOTES,
 
 - **Nothing is computed on the SH-2.** A build-time script works out, for each of 110 frames of motion and 16 still ones, the six 16.16 values of the backwards mapping and a box around what the logo covers, its left and right edges rounded to even pixels. The SH-2 does no trigonometry and no division.
 - **Motion that feels even.** Time is eased as *e* = 1 − (1 − *t*)³. The scale is 0.06 raised to the power (1 − *e*), so it grows by equal ratios rather than equal amounts, which the eye sees as a steady approach. The angle unwinds two turns.
-- **The build checks the result.** The script draws the last frame exactly as the SH-2 will and stops the build unless it lands pixel for pixel on the Mega Drive's own logo.
-- **Frames follow the clock.** The SH-2 picks which frame to draw from the V-Blank count, so a slow frame is skipped rather than delaying the rest. It clears only the box the logo covered last time in that buffer.
+- **The build checks the result.** The script draws the last picture exactly as the SH-2 will and stops the build unless it lands pixel for pixel on the Mega Drive's own logo.
+- **Pictures follow the clock.** The SH-2 picks which picture to draw from the V-Blank count, so when one is slow to draw, the animation skips ahead rather than running late. It clears only the box the logo covered last time in that buffer.
 
 How the layer is then handed back to the Mega Drive without a visible change is in [Mixing 32X and Mega Drive graphics](../32x/compositing.md#handing-the-screen-from-one-layer-to-the-other).
 
@@ -122,7 +122,7 @@ How the layer is then handed back to the Mega Drive without a visible change is 
 
 After Burner Complete shows a lot of rotation and never rotates a pixel [AB32X, notes on the title sequence and play]:
 
-- Its title logo is built from sphere sprites. The logo turns by rotating each sphere's position in 3D; each sphere is then projected and drawn by the scaler. Up to 143 of them a frame.
+- Its title logo is built from sphere sprites. The logo turns by rotating each sphere's position in 3D; each sphere is then projected and drawn by the scaler. Up to 143 of them a picture.
 - When the plane banks, the horizon tilts because each line's two fills meet at a different point. The ground detail, enemies and clouds are upright sprites at rotated positions.
 
 For objects that look the same from any angle, such as spheres, clouds, explosions and trees seen from above, rotating the positions and scaling upright sprites is far cheaper than rotating an image.
@@ -153,11 +153,11 @@ d32xr reproduces Doom's melt, where the old screen slides down in uneven columns
 
 The d32xr title screen burns with a fire effect [D32XR, m_fire.c]:
 
-- **A grid of heat values,** 320 × 72, with a full-heat bottom row. Each frame, every cell copies its heat to the cell above, moved 0 to 2 cells sideways and losing 0 or 1 heat, both taken from one random number.
+- **A grid of heat values,** 320 × 72, with a full-heat bottom row. On each pass, every cell copies its heat to the cell above, moved 0 to 2 cells sideways and losing 0 or 1 heat, both taken from one random number.
 - **Random numbers from a table:** 256 entries filled once, read in turn, instead of calling the random number generator per cell.
 - **Colours chosen at start-up:** the fire's 26-colour ramp is matched to the nearest entries of the game palette by squared colour distance.
 - **Going out:** random amounts are taken off the bottom rows, four cells per longword.
-- **Two CPUs, no synchronisation.** The Slave spreads the fire continuously; the Master scrolls the title picture and copies the fire into the frame buffer two pixels per word. They do not wait for each other, and the occasional mismatch between the two halves of a frame does not show in a fire.
+- **Two CPUs, no synchronisation.** The Slave spreads the fire continuously; the Master scrolls the title picture and copies the fire into the frame buffer two pixels per word. They do not wait for each other, and the occasional mismatch between the two halves of a picture does not show in a fire.
 
 ### Fades
 

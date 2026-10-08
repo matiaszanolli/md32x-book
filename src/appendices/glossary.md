@@ -120,7 +120,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | Operator sprite | In shadow/highlight mode, sprite pixels in palette 3 colours 14 and 15. They draw nothing; they brighten or darken whatever is underneath. |
 | Oracle | In testing, a second trusted way of getting the right answer, such as the original game or a reference implementation, that results are compared against. |
 | Ordered dither | Leaving out or changing pixels according to a fixed repeating pattern (such as a 4 × 4 table) to fake a level between two colours or between opaque and transparent. |
-| Overdraw | Writing the same pixel more than once in a frame. An overdraw of 1.36 means 36% more pixel writes than the screen has pixels. |
+| Overdraw | Writing the same pixel more than once while drawing one picture. An overdraw of 1.36 means 36% more pixel writes than the screen has pixels. |
 | Overwrite image | A second address range for the 32X frame buffer. Writes through it skip zero bytes, so those pixels keep their old value. |
 | Packed pixel | The 32X VDP mode with one byte per pixel, each byte choosing one of 256 palette entries. |
 | Painter's algorithm | Drawing surfaces from the farthest to the nearest, so that nearer ones cover farther ones. Needs a sort instead of a depth buffer. |

@@ -8,9 +8,9 @@ That gap, between what the hardware can do and what an early game actually asked
 
 ## What the original game does
 
-**It draws far fewer frames than the screen shows.** The Mega Drive's vertical interrupt fires 60 times a second, and the game's own counter dutifully counts 60 per second. But the 32X only finishes a new 3D frame about once every three interrupts, around 20 frames per second <span class="tag emulator">emulator</span> [VRD-NOTES, profiling].
+**It draws far fewer pictures than the screen shows.** The Mega Drive's vertical interrupt fires 60 times a second, and the game's own counter dutifully counts 60 per second. But the 32X only finishes a new 3D picture about once every three interrupts, around 20 pictures a second <span class="tag emulator">emulator</span> [VRD-NOTES, profiling].
 
-> **TODO:** replace "around 20" with the measured count from the SH-2 frame counter, and say which emulator and version (or which console).
+> **TODO:** replace "around 20" with the measured count from the SH-2's picture counter, and say which emulator and version (or which console).
 
 **The 68000 spends most of its time waiting.** Of the 16.7 ms between two vertical interrupts, game logic takes about 1.4 ms. About 7.8 ms goes to polling: a loop that keeps asking the 32X side whether it is ready yet. Another 5.7 ms is plain idle time <span class="tag emulator">emulator</span> [VRD-NOTES, profiling].
 
@@ -24,13 +24,13 @@ That gap, between what the hardware can do and what an early game actually asked
 
 The first rule was not to change anything until the original could be rebuilt exactly. The game was disassembled into source files that assemble back into a ROM identical to the original, byte for byte, checked by comparing MD5 hashes [VRD-NOTES, setup]. From then on, every change could be tested against a build known to be correct, and every annotation pass (turning raw data words back into readable instructions, naming functions) had to keep that rebuild identical. [Disassembling and annotating a commercial game](howto/reverse-engineering.md) describes the method.
 
-The second rule was to measure the right thing. The vertical interrupt counter always reads 60 per second, so it says nothing about how fast the game really runs. The real figure comes from a counter placed where the SH-2 finishes a frame, stored in SDRAM and accessed through its cache-through address (`0x26000400`) so the value in memory is always current [VRD-NOTES, profiling; 32X-OV, SH-2 memory map]. [Profiling and finding where time goes](howto/profiling.md) explains why this matters.
+The second rule was to measure the right thing. The vertical interrupt counter always reads 60 per second, so it says nothing about how fast the game really runs. The real figure comes from a counter placed where the SH-2 finishes a picture, stored in SDRAM and accessed through its cache-through address (`0x26000400`) so the value in memory is always current [VRD-NOTES, profiling; 32X-OV, SH-2 memory map]. [Profiling and finding where time goes](howto/profiling.md) explains why this matters.
 
 ## What changed
 
 The empty fourth megabyte was put to use. The build fills the ROM out to 4 MB, updates the header's end address to `$3FFFFF`, and places new Slave SH-2 code at `$300000`, which the SH-2 sees at `0x02300000` through the cache [VRD-NOTES, ROM size; 32X-OV, SH-2 memory map].
 
-The idle SH-2 was given rendering work, so that both processors share each frame.
+The idle SH-2 was given rendering work, so that both processors share the work of each picture.
 
 > **TODO:** describe what the Slave now does, whether polling was replaced with interrupts, the frame rate achieved, and which console the result was tested on.
 
@@ -42,7 +42,7 @@ Each problem above is a pattern that shows up across 32X software, and each one 
 
 - A processor that waits is the most common waste on the 32X. See [Splitting work across three CPUs](patterns/cpu-split.md).
 - Polling loops between the 68000 and the SH-2s burn time on both sides. See [68000 and SH-2 communication](32x/communication.md).
-- Frame rate has to be measured where frames are finished, not where the screen refreshes. See [Profiling and finding where time goes](howto/profiling.md).
+- Frame rate has to be measured where pictures are finished, not where the screen refreshes. See [Profiling and finding where time goes](howto/profiling.md).
 - Cartridge space and how each CPU sees it. See [Using more cartridge space](howto/large-cartridges.md).
 - Knowing which addresses go through the cache and which bypass it. See [Cache discipline](patterns/cache.md).
 

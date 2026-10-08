@@ -19,7 +19,7 @@ The formats in the sources, and what each is for:
 | 0.16 unsigned | 16 | 0 to 1 | 1/65,536 | d32xr's sine table, which never needs to hold 1.0 exactly (see below) [D32XR, tables.c] |
 | 8.8 | 16 | ±128 | 1/256 | The VRD project's copy of Virtua Racing Deluxe: grip and steering factors, and a 257-entry sine table [VRD-NOTES, disasm/modules/68k/game/physics] |
 
-Choose the format per quantity, from the range it needs and the smallest step that matters on screen. Store it in the smallest type that holds it, and widen it for arithmetic. d32xr keeps wall heights in 16 bits as 12.4 because there are 165 wall records per frame, and works in 16.16.
+Choose the format per quantity, from the range it needs and the smallest step that matters on screen. Store it in the smallest type that holds it, and widen it for arithmetic. d32xr keeps wall heights in 16 bits as 12.4 because there are 165 wall records per picture, and works in 16.16.
 
 Write the formats down. Bugs in fixed-point code are nearly always a value in one format used as another, and nothing in C or assembler catches them.
 
@@ -44,8 +44,8 @@ When both values fit in 16 bits, `MULS.W` is cheaper: a 16 × 16 → 32 product 
 From cheapest to most general:
 
 1. **Divide by a constant: multiply instead.** *x* / *c* is *x* × (2<sup>*n*</sup>/*c*) shifted right *n*. GCC already does this for constants it can see: sh-elf-gcc 13.2 turns `a / 10` into a `DMULS.L` by `$66666667` (checked by compiling for this book). On the 68000 it is worth doing by hand. The VRD project replaced the game's `DIVS #103` with `MULS #644` and a `SWAP`, which divides by 65,536/644 ≈ 101.8 [VRD-NOTES, OPTIMIZATION_PLAN.md QW-5]. That shows both catches: the result is not exactly the same (101.8, not 103), and the `SWAP` rounds towards minus infinity where `DIVS` rounds towards zero, so negative values come out one lower. Check that both are acceptable.
-2. **Divide once, multiply many times.** Aerobiz Ultimate's zoomed map positions 178 cities with one divide per frame: it computes 2<sup>24</sup> / step once, and each city's column is then a subtraction, a shift and a multiply [AU-NOTES, disasm/sh2/master/fb.c].
-3. **A table of reciprocals.** For divisors in a known range, store 2<sup>*n*</sup>/*d* for each *d*. Star Wars Arcade builds 8,192 words of 32,768 / *n* at start-up with the divider and takes edge slopes from it ([Filling polygons](software-3d.md#filling-polygons)) [SWA, SH-2 code at `0x06000EFE`]. Constant factors can be folded into the table: the homebrew notes put the focal length into the projection table, turning a three-factor product into one multiply, which removed about 340 software divides a frame from a racing game <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md]. A table's step size sets its error; see [Projection](software-3d.md#projection-dividing-by-depth) for how badly a coarse one does close up.
+2. **Divide once, multiply many times.** Aerobiz Ultimate's zoomed map positions 178 cities with one divide per picture: it computes 2<sup>24</sup> / step once, and each city's column is then a subtraction, a shift and a multiply [AU-NOTES, disasm/sh2/master/fb.c].
+3. **A table of reciprocals.** For divisors in a known range, store 2<sup>*n*</sup>/*d* for each *d*. Star Wars Arcade builds 8,192 words of 32,768 / *n* at start-up with the divider and takes edge slopes from it ([Filling polygons](software-3d.md#filling-polygons)) [SWA, SH-2 code at `0x06000EFE`]. Constant factors can be folded into the table: the homebrew notes put the focal length into the projection table, turning a three-factor product into one multiply, which removed about 340 software divides a picture from a racing game <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md]. A table's step size sets its error; see [Projection](software-3d.md#projection-dividing-by-depth) for how badly a coarse one does close up.
 4. **The SH-2's divider.** 39 clocks for a 32/32 or 64/32 divide, and free if started early and read late ([Division unit](../sh2/divu.md)). d32xr's 16.16 `FixedDiv` is the 64/32 form. In a test build, its wall loop puts about 69 instructions of other work between starting each column's divide and reading it, and its floor loop about 64 [D32XR, sh2_fixed.s, r_phase6.c, r_phase7.c]. **The compiler never uses the divider**: a `/` between two variables in C compiles to a call to libgcc's software routine (`___sdivsi3`, or `___divdi3` for 64 bits). Drive the unit by hand, with an inline function as d32xr does. Aerobiz Ultimate's SH-2 code divides only with `/`, so all its divides are software ones [AU-NOTES, Makefile].
 5. **`DIV1` steps.** Sixteen `DIV1`s give a 16-bit quotient in about 20 clocks with no set-up, which beats the divider when nothing could overlap it. Mortal Kombat II and After Burner Complete divide this way ([What shipped code does](../sh2/divu.md#what-shipped-code-does)).
 
@@ -103,7 +103,7 @@ Finding the angle of a vector (*x*, *y*) needs atan2. All the sources fold the v
 
 Aerobiz Ultimate's arcsine table covers −1 to 1 in 257 interpolated steps. Arcsine is steep near ±1, where a table is least accurate; its comment notes that no city on its map is far enough from the equator to reach those ends [AU-NOTES, disasm/sh2/master/fb.c].
 
-Where the inputs are known in advance, compute the angles when building. A homebrew racing game's opponents called atan2 and a distance function about 750 times a frame to plan corners; storing the results per track point removed them <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md].
+Where the inputs are known in advance, compute the angles when building. A homebrew racing game's opponents called atan2 and a distance function about 750 times a picture to plan corners; storing the results per track point removed them <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md].
 
 ## Distances
 
@@ -147,7 +147,7 @@ PicoDrive returns a divide's result at once ([Division unit](../sh2/divu.md#in-e
 
 - Pick a format per quantity, write it down, store small and compute wide.
 - Use 16.16 with `DMULS.L` and `XTRCT` on the SH-2; on the 68000, pick scales so that 16 × 16 multiplies and shifts are enough.
-- Avoid divides in this order: constant as multiply, one divide per frame or slice, a reciprocal table, the divider started early, `DIV1` steps.
+- Avoid divides in this order: constant as multiply, one divide per picture or slice, a reciprocal table, the divider started early, `DIV1` steps.
 - Make a turn a power of two, keep spare angle bits, and fold the sine table if memory is short or store it whole if speed is.
 - Interpolate tables only where the steps would show, and compute what you can when building.
 - Use `int64_t`, not `long`, for products, and remember the divider is signed.

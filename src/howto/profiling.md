@@ -12,20 +12,20 @@ First the arithmetic every measurement hangs on. One NTSC frame is 1/60 of a sec
 
 **Count pixels, not just time.** Run the renderer's span, quad and copy calls against counters on the host side, reported per element — backdrop, entities, HUD. If the counts say the primitives are few but the time is large, your limit is per-primitive setup; if both are large, it is fill rate <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes]. One game found its bottleneck was redraw of things that had not changed, which no per-pixel timer would have said.
 
-**Measure frame rate from video, without touching the game.** Draw a white bar whose width is the game's own frame counter cut to seven bits. Capture the screen twice, N emulated frames apart, and the change in width — wrapped — is the number of game iterations in those frames <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes]. A game running between 12 and 19 iterations per 60 frames can be read this way to within a few percent from two stills.
+**Measure frame rate from video, without touching the game.** Draw a white bar whose width is the game's own count of pictures drawn, cut to seven bits. Capture the screen twice, N emulated frames apart, and the change in width — wrapped — is the number of game iterations in those frames <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes]. A game running between 12 and 19 iterations per 60 frames can be read this way to within a few percent from two stills.
 
-**Probe headroom with deliberate ballast.** Frame rate cannot show an improvement that stays inside the spare part of a frame: 15 fps and 16 fps both look like "dropping frames". Instead inject busy-work of a known cost and increase it until the frame drops a step; the amount absorbed is your headroom, a continuous number <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes]. Then validate the instrument before trusting it. In one project a ballast flag was compiled out, and in another the emulator's recompiler recognised the busy loop and skipped it — four million dummy iterations that cost nothing, and every reading after that meaningless <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes].
+**Probe headroom with deliberate ballast.** Frame rate cannot show an improvement that stays inside the spare part of a frame: 15 fps and 16 fps both look like "dropping frames". Instead inject busy-work of a known cost and increase it until the frame rate drops a step; the amount absorbed is your headroom, a continuous number <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes]. Then validate the instrument before trusting it. In one project a ballast flag was compiled out, and in another the emulator's recompiler recognised the busy loop and skipped it — four million dummy iterations that cost nothing, and every reading after that meaningless <span class="tag emulator">emulator</span> [S32X-SKILL, optimization notes].
 
-## Counting real frames
+## Counting real pictures
 
 The obvious counter — "how many vertical interrupts per second?" — is useless: it counts the mains frequency, 3,600 per minute on NTSC, whether the game draws or not [VRD-NOTES, FPS counter notes]. What you want to count is one of:
 
-- **Displayed frames**: count flips of the frame-buffer select bit per 60 vertical interrupts [VRD-NOTES, FPS counter notes].
+- **Displayed pictures**: count flips of the frame-buffer select bit per 60 vertical interrupts [VRD-NOTES, FPS counter notes].
 - **Game iterations**: count how many times the main loop runs, with a counter the loop itself increments. Keep such a counter in cache-through SDRAM, not in a communication register or somewhere a debug read cannot see.
 
 A counter that the instrumented game reads through a communication register deserves suspicion: one project's counter read a *live* register instead of its own variable, another read the adapter control register where it meant to read the frame-buffer control byte, and in one build an assembler bug landed a subroutine call two bytes past its target [VRD-NOTES, FPS counter notes]. Every one of those produced plausible-looking numbers.
 
-**Emulated frames are not game frames.** A "run 2,400 frames" emulator run at an effective 12 fps is about 480 game iterations. Timers that count iterations need the right window, and brief effects can fall entirely between two captured frames — capture several [S32X-SKILL, testing notes].
+**Emulated frames are not the game's pictures.** A "run 2,400 frames" emulator run at an effective 12 fps is about 480 game iterations. Timers that count iterations need the right window, and brief effects can fall entirely between two captured frames — capture several [S32X-SKILL, testing notes].
 
 ## Measuring a game from outside
 

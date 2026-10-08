@@ -13,13 +13,13 @@ The Virtua Racing and homebrew material was checked only in emulators, and the V
 
 ### A fixed tick, whatever the frame rate
 
-A game whose logic steps once per drawn picture runs slower whenever drawing does. The fix is to step the logic at a fixed rate and draw when a picture is ready. [When a frame runs long](../patterns/60fps.md#when-a-frame-runs-long) shows three shipped answers: d32xr's 15 Hz tick with movement scaled by elapsed time, Aerobiz Ultimate's count of vertical interrupts, and Virtua Racing's three-state machine. Homebrew adds three refinements <span class="tag emulator">emulator</span> [S32X-SKILL, porting-workflow.md, testing.md]:
+A game whose logic steps once per drawn picture runs slower whenever drawing does. The fix is to step the logic at a fixed rate and draw when a picture is ready. [When a picture runs long](../patterns/60fps.md#when-a-picture-runs-long) shows three shipped answers: d32xr's 15 Hz tick with movement scaled by elapsed time, Aerobiz Ultimate's count of vertical interrupts, and Virtua Racing's three-state machine. Homebrew adds three refinements <span class="tag emulator">emulator</span> [S32X-SKILL, porting-workflow.md, testing.md]:
 
-- **Advance every timer by the vertical blanks the frame covered**, not by one per frame: waits, typewriter text, move routes, battle pacing. A port running at about 28 frames per second then keeps the original's real-time pace.
+- **Advance every timer by the vertical blanks the picture covered**, not by one per picture: waits, typewriter text, move routes, battle pacing. A port running at about 28 pictures a second then keeps the original's real-time pace.
 - **Match an odd original rate exactly.** One port's original ran its logic from a 180 Hz PC timer at 36.0036 steps a second. The port keeps that ratio as a fraction and adds it to an accumulator each vertical blank, stepping whenever it passes a whole step, instead of stepping once per frame.
-- **Tie the tick to vertical blanks for replays.** A game whose frames take about 30 ms steps its logic exactly every third vertical blank (20 Hz), so a recorded input sequence lines up step for step between the ROM and a PC version used as a reference.
+- **Tie the tick to vertical blanks for replays.** A game whose pictures take about 30 ms steps its logic exactly every third vertical blank (20 Hz), so a recorded input sequence lines up step for step between the ROM and a PC version used as a reference.
 
-Choose the rate before writing the game. Virtua Racing's logic assumes 20 steps a second in about 30 constants, which is why changing its rate broke it ([When a frame runs long](../patterns/60fps.md#when-a-frame-runs-long)).
+Choose the rate before writing the game. Virtua Racing's logic assumes 20 steps a second in about 30 constants, which is why changing its rate broke it ([When a picture runs long](../patterns/60fps.md#when-a-picture-runs-long)).
 
 ### Determinism
 
@@ -51,16 +51,16 @@ A monster has to know whether it can see its target, every tick, for every awake
 
 ## Car physics: Virtua Racing
 
-By the VRD project's account, every car is simulated on the 68000 each frame by a fixed pipeline of 17 steps: camera, timers, steering, forces, speed, gears, tilt, drift, position, then collision. Computer cars and replays use shorter versions <span class="tag emulator">emulator</span> [VRD-NOTES, master branch, analysis/PHYSICS_SYSTEM_ARCHITECTURE.md]:
+By the VRD project's account, every car is simulated on the 68000 once per game step (20 a second, one per picture) by a fixed pipeline of 17 stages: camera, timers, steering, forces, speed, gears, tilt, drift, position, then collision. Computer cars and replays use shorter versions <span class="tag emulator">emulator</span> [VRD-NOTES, master branch, analysis/PHYSICS_SYSTEM_ARCHITECTURE.md]:
 
-- **Grip in 8.8 fixed point.** Grip starts each frame at 1.0 (`$0100`). If the net force is more than the tyres can take, grip falls in proportion to the excess, never below 0.5, and the tyres squeal.
+- **Grip in 8.8 fixed point.** Grip starts each step at 1.0 (`$0100`). If the net force is more than the tyres can take, grip falls in proportion to the excess, never below 0.5, and the tyres squeal.
 - **Braking bites harder.** A negative net force is doubled before it is applied.
-- **Speed changes are limited** to 1,024 units per frame either way.
+- **Speed changes are limited** to 1,024 units per step either way.
 - **Gear changes keep the speed.** Changing up multiplies the internal speed by the gear ratio over 256; changing down divides by it. The speed the player sees does not jump.
 - **Speed from a table.** A 384-entry table gives the base speed, then a chain of multipliers adjusts it: boost, a reduction at high speed (11/16), a tail wind (×1.75).
 - **Steering** is filtered through a dead zone, then smoothed by averaging with the previous value; drift reduces grip in proportion to steering and speed.
 
-**Collision by searching the frame** <span class="tag emulator">emulator</span> [VRD-NOTES, master branch, analysis/COLLISION_SYSTEM_ARCHITECTURE.md]. Five probe points (the centre and four corners) are tested against the track's edges. If any hits, the car's heading, scale and position are set back to the previous frame's values. The move is then repeated in four quarter steps, probing after each, and stopped at the first quarter that collides. Contact is resolved to a quarter of a frame without working out where the car meets the wall geometrically. The ground height under each probe is then averaged with the last frame's, which smooths bumps.
+**Collision by searching the move** <span class="tag emulator">emulator</span> [VRD-NOTES, master branch, analysis/COLLISION_SYSTEM_ARCHITECTURE.md]. Five probe points (the centre and four corners) are tested against the track's edges. If any hits, the car's heading, scale and position are set back to the previous step's values. The move is then repeated in four quarter steps, probing after each, and stopped at the first quarter that collides. Contact is resolved to a quarter of a step without working out where the car meets the wall geometrically. The ground height under each probe is then averaged with the last step's, which smooths bumps.
 
 **Track look-up** <span class="tag emulator">emulator</span> [VRD-NOTES, master branch, analysis/TRACK_DATA_FORMAT.md, COLLISION_SYSTEM_ARCHITECTURE.md]:
 
@@ -90,7 +90,7 @@ Aerobiz Supersonic does its economy in plain integers, with no fixed point [AB-D
 
 - **One state variable for the game's flow**: title, selection, play, game over. Each screen's update and drawing are chosen by it, and menus act on a button's press, not while it is held, so one press moves one screen <span class="tag emulator">emulator</span> [S32X-SKILL, 2d-and-shmup.md].
 - **Sound from differences.** The main loop records a few counters (hit points, explosions, cooldowns) before the game update and plays sounds for what changed. The game logic never calls the sound code, so it can be tested on a PC <span class="tag emulator">emulator</span> [S32X-SKILL, 2d-and-shmup.md].
-- **Attract mode from recorded input.** After about seven and a half seconds without input, one homebrew game feeds a recorded input stream into its real game loop. Players expect the demo, it exercises the drawing code, and the same stream drives its replay tests <span class="tag emulator">emulator</span> [S32X-SKILL, optimization.md]. Recorded input only replays correctly at the rate it was recorded at: Virtua Racing's replay format assumes 20 game steps a second, and changing the rate broke its attract mode ([When a frame runs long](../patterns/60fps.md#when-a-frame-runs-long)).
+- **Attract mode from recorded input.** After about seven and a half seconds without input, one homebrew game feeds a recorded input stream into its real game loop. Players expect the demo, it exercises the drawing code, and the same stream drives its replay tests <span class="tag emulator">emulator</span> [S32X-SKILL, optimization.md]. Recorded input only replays correctly at the rate it was recorded at: Virtua Racing's replay format assumes 20 game steps a second, and changing the rate broke its attract mode ([When a picture runs long](../patterns/60fps.md#when-a-picture-runs-long)).
 
 ## Where the logic runs
 
@@ -103,7 +103,7 @@ In the shipped games whose split has been traced, the 68000 runs the game logic,
 - Use fixed pools, clear them completely, and apply side effects after the pass that finds them.
 - Bucket walls into a grid, stamp each one per query, and give each CPU its own stamps.
 - Check sight in layers: a precomputed table, then a walk that narrows the open slopes.
-- For fast objects, back up and search the frame in fractions instead of solving the geometry.
+- For fast objects, back up and search the move in fractions instead of solving the geometry.
 - Use |dx| + |dy| where an exact distance is not needed.
 
 ## Open questions

@@ -40,7 +40,7 @@ Most SDRAM goes to one of three things: the program, which the boot copies from 
 - The program's data, and the routines that must run fast, which it links into SDRAM rather than leaving in the cartridge.
 - A zone of 210 KB in the default build, a single static array.
 - Stacks at the top: the Primary's from `0x0603F400`, the Secondary's from `0x06040000`, which gives the Secondary 3 KB.
-- Per-frame working data in the frame buffer, not in SDRAM (see [Borrowing the frame buffer](#borrowing-the-frame-buffer)).
+- Per-picture working data in the frame buffer, not in SDRAM (see [Borrowing the frame buffer](#borrowing-the-frame-buffer)).
 
 All three put the stacks at the top and grow them down towards the data. Nothing checks that they do not meet. A stack that grows into a buffer corrupts it without warning, so measure each stack's deepest use (fill it with a pattern, run the game, see how much was overwritten) and leave a margin.
 
@@ -50,17 +50,17 @@ Mortal Kombat II and After Burner Complete also share no SDRAM between the two C
 
 The SH-2 sees the whole cartridge directly, so data that is only read does not have to be copied at all:
 
-- **d32xr uses uncompressed lumps where they lie.** Looking one up returns a pointer into the cartridge, with no copy. Wall textures are drawn straight from the cartridge unless the texture cache has a copy ([Caches with a lifetime in frames](#caches-with-a-lifetime-in-frames)). A build option goes further and reads the level's segs and nodes from the cartridge instead of loading them [D32XR, w_wad.c, r_main.c, p_setup.c `USE_SMALL_LUMPS`].
+- **d32xr uses uncompressed lumps where they lie.** Looking one up returns a pointer into the cartridge, with no copy. Wall textures are drawn straight from the cartridge unless the texture cache has a copy ([Caches with a lifetime in pictures](#caches-with-a-lifetime-in-pictures)). A build option goes further and reads the level's segs and nodes from the cartridge instead of loading them [D32XR, w_wad.c, r_main.c, p_setup.c `USE_SMALL_LUMPS`].
 - **After Burner Complete keeps its sprites compressed in the cartridge** and decodes only the ones on screen.
 
-Reading the cartridge costs time. Each cache miss fills a 16-byte line, which takes 64 to 136 clocks from the cartridge against 12 from SDRAM ([What a 16-bit bus costs](../sh2/bsc.md#what-a-16-bit-bus-costs)). The 68000 also uses that bus, and an SH-2 is stalled entirely while the 68000 has RV set. Data read once per frame, in order, is fine in the cartridge. Data read often, or at random, should be copied or cached.
+Reading the cartridge costs time. Each cache miss fills a 16-byte line, which takes 64 to 136 clocks from the cartridge against 12 from SDRAM ([What a 16-bit bus costs](../sh2/bsc.md#what-a-16-bit-bus-costs)). The 68000 also uses that bus, and an SH-2 is stalled entirely while the 68000 has RV set. Data read once per picture, in order, is fine in the cartridge. Data read often, or at random, should be copied or cached.
 
 ## Borrowing the frame buffer
 
-The frame buffer not on screen is 128 KB of memory the SH-2s can use whenever they hold FM. A 320 × 224 picture uses 70 KB of it; the rest is spare, and before the first frame is drawn all of it is. d32xr uses it twice [D32XR, marsnew.c `I_TempBuffer`, `I_WorkBuffer`; r_main.c]:
+The frame buffer not on screen is 128 KB of memory the SH-2s can use whenever they hold FM. A 320 × 224 picture uses 70 KB of it; the rest is spare, and before the first picture is drawn all of it is. d32xr uses it twice [D32XR, marsnew.c `I_TempBuffer`, `I_WorkBuffer`; r_main.c]:
 
 - **While a level loads**, up to about 127 KB of it is a temporary buffer. Compressed lumps are unpacked into it, and the level loader stages data there. The buffer is cleared first, because byte writes of 0 are ignored ([Compression](compression.md#d32xrs-lzss-byte-aligned-and-resumable)).
-- **Every frame**, the space below the visible lines of the buffer being drawn, about 58 KB at 224 lines, holds the renderer's working arrays: visible planes, the clip lists, the wall and sprite records, the sorted lists, and two column caches. Each frame builds them from scratch, so it does not matter that the two buffers swap at every frame.
+- **Every picture**, the space below the visible lines of the buffer being drawn, about 58 KB at 224 lines, holds the renderer's working arrays: visible planes, the clip lists, the wall and sprite records, the sorted lists, and two column caches. Each picture builds them from scratch, so it does not matter that the two buffers swap after every picture.
 
 The frame buffer is slower than SDRAM: reads take 7 to 14 clocks. Use it for data that is written once and read a few times, through the cache-through address unless it is the same in both buffers ([A safe use of the cached frame buffer](../sh2/cache.md#a-safe-use-of-the-cached-frame-buffer)). Wide guard bands use the same spare memory, so a program cannot have both ([Guard bands](../32x/vdp.md#guard-bands-drawing-without-clipping)).
 
@@ -75,7 +75,7 @@ d32xr allocates almost everything from its zone, with an allocator inherited fro
 - **A free block is split only if more than 64 bytes would be left over.** Otherwise the caller gets the whole block. Tiny free fragments, which nothing could use, are never made.
 - **Freeing merges with both neighbours** if they are free, so free space never stays in pieces next to each other.
 - **Tags give each block a lifetime.** Blocks tagged for the level are all freed at once when it ends. There is no automatic purging of blocks the way PC Doom has; a failed allocation stops the game with an error, unless the caller asked for a null result instead.
-- **The zone is a parameter.** The texture cache runs its own zone, made from one large block of the main zone ([Caches with a lifetime in frames](#caches-with-a-lifetime-in-frames)).
+- **The zone is a parameter.** The texture cache runs its own zone, made from one large block of the main zone ([Caches with a lifetime in pictures](#caches-with-a-lifetime-in-pictures)).
 - The allocator checks the whole chain of blocks at every level change.
 
 Before the zone is set up, the same memory is lent to the intro's video player [D32XR, d_main.c].
@@ -116,7 +116,7 @@ Aerobiz Supersonic does the same on the 68000. The buffer at `$FF1804` that rece
 
 ## A cache of decoded sprites
 
-After Burner Complete stores its sprites compressed in the cartridge, decodes each shape the first time it is needed, and scales it from the decoded copy every frame after that [AB32X, SH-2 code at `0x060065BC`-`0x0600676C`]:
+After Burner Complete stores its sprites compressed in the cartridge, decodes each shape the first time it is needed, and scales it from the decoded copy in every picture after that [AB32X, SH-2 code at `0x060065BC`-`0x0600676C`]:
 
 - **Descriptors.** A ring of 128 entries of 8 bytes: shape number, decoded size, offset in the buffer, and a lap number.
 - **Lookup** walks back from the newest entry to the oldest, comparing shape numbers. A hit gives the offset. The bits of the shape number that choose mirroring and scaling mode are cleared first, so every mode of a shape shares one decoded copy.
@@ -127,14 +127,14 @@ After Burner Complete stores its sprites compressed in the cartridge, decodes ea
 
 In a profile of 2,000 frames of play, the cache's lookup and decoding take about 2% of the Master's time <span class="tag emulator">emulator</span> [AB32X, PC profile in PicoDrive]. The scaler, reading the decoded copies, takes about 45%.
 
-## Caches with a lifetime in frames
+## Caches with a lifetime in pictures
 
 d32xr's texture cache keeps SDRAM copies of the wall textures and floor textures in view, which are faster to draw from than the cartridge [D32XR, r_cache.c, r_main.c, r_phase9.c]:
 
 - **Its size is whatever is left.** After a level loads, the cache takes the largest free block of the zone, less 8 KB (16 KB on maps with a boss that spawns monsters) left free for allocations during play.
-- **Each entry has a lifetime of 3 frames.** Every frame, each texture drawn resets its entry's count to 3, and then every entry's count goes down by one. An entry not drawn for 3 frames reaches 0.
-- **When there is no room**, entries at 0 are freed, along with those not used this frame that are smaller than the new texture. If that does not free enough space in one piece, the texture is simply not cached this frame. The game draws it from the cartridge as before.
-- **One new texture a frame** at most, in the default build. The cost of filling the cache is spread out.
+- **Each entry has a lifetime of 3 pictures.** In every picture, each texture drawn resets its entry's count to 3, and then every entry's count goes down by one. An entry not drawn for 3 pictures reaches 0.
+- **When there is no room**, entries at 0 are freed, along with those not used in this picture that are smaller than the new texture. If that does not free enough space in one piece, the texture is simply not cached in this picture. The game draws it from the cartridge as before.
+- **One new texture a picture** at most, in the default build. The cost of filling the cache is spread out.
 - **The pointer is swapped.** Adding an entry points the texture's data pointer at the copy and keeps the old cartridge pointer; dropping it puts the old pointer back. The drawing code never knows whether it is reading a copy. The 4 bytes in front of each copy point back to its entry, so a texture pointer leads to its entry with no search.
 
 Nothing depends on the cache: a texture that is not in it is drawn correctly, only more slowly. That is what makes it safe to fill it from whatever memory is left over.
@@ -143,10 +143,10 @@ Nothing depends on the cache: a texture that is not in it is drawn correctly, on
 
 - Write down the SDRAM map, including the stacks, and keep the stacks' worst case measured.
 - Leave read-only data in the cartridge if it is read rarely and in order; copy or cache what is read often.
-- The hidden frame buffer is spare memory for setup and per-frame scratch, if you can live with slow reads and dropped zero bytes.
+- The hidden frame buffer is spare memory for setup and per-picture scratch, if you can live with slow reads and dropped zero bytes.
 - Allocate per level, with lifetimes, and free in bulk. Pool objects that come and go, and do not reuse a freed object until nothing can still hold it.
 - Shrink structures: 16-bit pointers, fields recomputed instead of stored, rare fields moved to side tables, and memory shared between phases that never overlap.
-- Cache decoded data with a policy that cannot fragment (a ring) or a lifetime in frames, and make every miss harmless.
+- Cache decoded data with a policy that cannot fragment (a ring) or a lifetime in pictures, and make every miss harmless.
 
 ## Open questions
 

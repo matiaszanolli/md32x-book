@@ -95,7 +95,7 @@ Two habits make all four easier:
 
 ### A safe use of the cached frame buffer
 
-The frame buffer can be read through its cached alias at `0x04000000` too, and d32xr does it for lookup tables kept in spare frame buffer memory [D32XR, r_data.c]. There is a catch: that address always shows the buffer *not* on screen, and the two swap every frame (see [The 32X VDP](../32x/vdp.md)). After a swap, the cache still holds lines read from the other buffer. d32xr builds its tables on two frames in a row, once into each buffer, so a line from either buffer holds the same bytes [D32XR, r_main.c, p_tick.c]. Read-only data stored identically in both buffers can be cached; anything else in the frame buffer must be read cache-through.
+The frame buffer can be read through its cached alias at `0x04000000` too, and d32xr does it for lookup tables kept in spare frame buffer memory [D32XR, r_data.c]. There is a catch: that address always shows the buffer *not* on screen, and the two swap with every picture (see [The 32X VDP](../32x/vdp.md)). After a swap, the cache still holds lines read from the other buffer. d32xr builds its tables on two pictures in a row, once into each buffer, so a line from either buffer holds the same bytes [D32XR, r_main.c, p_tick.c]. Read-only data stored identically in both buffers can be cached; anything else in the frame buffer must be read cache-through.
 
 ## Purging
 
@@ -118,7 +118,7 @@ What the RAM is like [SH7604 §8.4.8, §7.11.2]:
 
 Setting it up: purge with the cache off, then turn the cache on with TW set. The purge clears the valid bits of ways 0 and 1, which Hitachi requires before two-way operation, because the tags of all four ways are still compared [SH7604 §8.4.5]. Star Wars Arcade's Slave does it in two writes: CCR = 0, then CCR = `$19` (purge, two-way, on) [SWA, SH-2 code at `0x060008F0`].
 
-**A full purge keeps the RAM.** Hitachi says CP "initializes" the cache and the RAM, but lists only the valid and replacement bits as cleared [SH7604 §8.5.4]. Star Wars Arcade settles it in practice. Its Slave copies its on-chip routine in once, at start-up. Every frame, the command that starts drawing writes CCR `$08` and then `$19`, a full purge in two-way mode, and goes straight on to call the on-chip code. The one command that copies the code in again (`$04`) is never sent by the 68000 [SWA, SH-2 code at `0x0600073C`, `0x060007A4`, `0x060007D0`, `0x060008F0`; 68000 command sender calls at `$0869E2`-`$086FE8`]. A purge that cleared the RAM would crash the game on its first frame.
+**A full purge keeps the RAM.** Hitachi says CP "initializes" the cache and the RAM, but lists only the valid and replacement bits as cleared [SH7604 §8.5.4]. Star Wars Arcade settles it in practice. Its Slave copies its on-chip routine in once, at start-up. For every picture, the command that starts drawing writes CCR `$08` and then `$19`, a full purge in two-way mode, and goes straight on to call the on-chip code. The one command that copies the code in again (`$04`) is never sent by the 68000 [SWA, SH-2 code at `0x0600073C`, `0x060007A4`, `0x060007D0`, `0x060008F0`; 68000 command sender calls at `$0869E2`-`$086FE8`]. A purge that cleared the RAM would crash the game on its first picture.
 
 Do not write `0xC0000000` with the cache in four-way mode. That area is then the data of lines in use, and writing it silently changes what the CPU reads for some other address [SH7604 §8.4.8].
 

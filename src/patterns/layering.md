@@ -8,13 +8,13 @@ A 32X game has two video chips, and the Mega Drive's keeps working while the SH-
 |---|---|---|
 | Picture made of | Two scrolling tile planes, a window and up to 80 sprites | A bitmap the SH-2s write |
 | Colours on screen | 61, from 512 | 256 from 32,768, or any of 32,768 in direct colour |
-| Cost per frame once set up | Scrolling is a few register or table writes. Only what changes needs updating | Every pixel that changes must be written again, by a CPU or an auto fill |
+| Cost per picture once set up | Scrolling is a few register or table writes. Only what changes needs updating | Every pixel that changes must be written again, by a CPU or an auto fill |
 | Limits | 64 KB of VRAM; about 7 KB of DMA per vertical blank; tiles on an 8-pixel grid; 20 sprites per line | SH-2 time and frame buffer bus time; a clear alone takes over a quarter of a frame |
 | Good at | Large scrolling backgrounds, parallax, text, HUDs, anything built from repeated tiles | Many colours, scaling, rotation, polygons, large animation frames |
 
 Sources: [The Mega Drive VDP](../megadrive/vdp.md); [How much fits in a frame](../megadrive/vdp-dma.md#how-much-fits-in-a-frame); [The 32X VDP](../32x/vdp.md); [What one frame holds](60fps.md#what-one-frame-holds).
 
-The cost row is the argument for layering. A Mega Drive background, once in VRAM, scrolls for the price of a few register writes. The same background on the 32X would have to be drawn again every frame it moves.
+The cost row is the argument for layering. A Mega Drive background, once in VRAM, scrolls for the price of a few register writes. The same background on the 32X would have to be drawn again in every picture in which it moves.
 
 ## The depth rule: in front of everything, or behind it
 
@@ -40,8 +40,8 @@ Sources: [How games split the work](../32x/compositing.md#how-games-split-the-wo
 
 Three designs, then:
 
-- **Mega Drive in front, 32X filling the screen behind it.** Star Wars Arcade and After Burner Complete draw a full 3D or scaled scene on the 32X and lay a Mega Drive cockpit or HUD over it. The HUD costs the SH-2s nothing, and text stays in the Mega Drive's font. The price: the 32X must cover every pixel every frame, because whatever it leaves shows through. After Burner Complete makes that cheap by drawing its sky and sea as auto fills, which double as the clear ([Getting the frame time down](60fps.md#draw-less)).
-- **32X objects in front of a Mega Drive world.** Mortal Kombat II and Chaotix leave the scrolling scenery to the Mega Drive and draw only the characters on the 32X, on a field of one colour that sits behind the Mega Drive picture. They reach the same picture by opposite settings: Mortal Kombat II has PRI 0 and through bits on the character colours, Chaotix PRI 1 and the through bit on the background colour. The field still has to be cleared every frame, but only with auto fills of one value. Chaotix gives that job to its Slave, so its Master draws while the clear runs ([Living with bus contention](bus.md#what-each-program-did)). Mortal Kombat II does the clear on its Master and waits for it ([What one frame holds](60fps.md#what-one-frame-holds)).
+- **Mega Drive in front, 32X filling the screen behind it.** Star Wars Arcade and After Burner Complete draw a full 3D or scaled scene on the 32X and lay a Mega Drive cockpit or HUD over it. The HUD costs the SH-2s nothing, and text stays in the Mega Drive's font. The price: the 32X must cover every pixel in every picture, because whatever it leaves shows through. After Burner Complete makes that cheap by drawing its sky and sea as auto fills, which double as the clear ([Getting the frame time down](60fps.md#draw-less)).
+- **32X objects in front of a Mega Drive world.** Mortal Kombat II and Chaotix leave the scrolling scenery to the Mega Drive and draw only the characters on the 32X, on a field of one colour that sits behind the Mega Drive picture. They reach the same picture by opposite settings: Mortal Kombat II has PRI 0 and through bits on the character colours, Chaotix PRI 1 and the through bit on the background colour. The field still has to be cleared for every picture, but only with auto fills of one value. Chaotix gives that job to its Slave, so its Master draws while the clear runs ([Living with bus contention](bus.md#what-each-program-did)). Mortal Kombat II does the clear on its Master and waits for it ([What one frame holds](60fps.md#what-one-frame-holds)).
 - **32X only.** Motocross Championship puts its whole presentation on the 32X in direct colour, HUD included, and leaves the Mega Drive planes empty [MCX, frame buffer dumps]. It pays for every pixel: its Master draws into a staging buffer and copies the finished picture across, and the game shows a new picture every fourth frame ([Drawing off screen and copying](streaming.md#drawing-off-screen-and-copying-motocross-championship)).
 
 ## Sprites over and under the 32X layer

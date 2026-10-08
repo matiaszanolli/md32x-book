@@ -108,10 +108,10 @@ There is one unit per CPU, and it has no way to save a divide in progress. If an
 
 A divide per pixel is never affordable. A divide per column, per scanline or per polygon edge usually is. The S32X-SKILL notes give the budget plainly: divides per column or slice, multiplies per point, shifts and table look-ups per pixel [S32X-SKILL, software-3d.md]. The usual moves:
 
-- **One divide per row of points that share a depth.** Every cell in a voxel slice and every pixel on a road scanline shares one depth. Compute its reciprocal once and multiply by it for each point: about three divides per cell become one per slice. Measure before and after, though. In one voxel game, hoisting about 1,800 divides a frame changed the frame rate not at all, because drawing was the bottleneck [S32X-SKILL, optimization.md; voxel-landscape.md].
+- **One divide per row of points that share a depth.** Every cell in a voxel slice and every pixel on a road scanline shares one depth. Compute its reciprocal once and multiply by it for each point: about three divides per cell become one per slice. Measure before and after, though. In one voxel game, hoisting about 1,800 divides a picture changed the frame rate not at all, because drawing was the bottleneck [S32X-SKILL, optimization.md; voxel-landscape.md].
 - **One slope per edge, not one divide per scanline.** A polygon filler that divided per scanline became twice as fast when it computed a 16.16 *dx/dy* once per edge and added it on each row [S32X-SKILL, optimization.md].
 - **Tables, as Star Wars Arcade builds them.** A reciprocal table turns a divide into a look-up and a multiply.
-- **Watch for hidden 64-bit divides.** In C, `((int64_t)dx << 16) / dy` compiles to gcc's `__divdi3`, a slow software routine that never touches the unit. Search the disassembly for `__divdi3` and `__udivdi3`. One road renderer was making about 340 such calls a frame [S32X-SKILL, optimization.md]. A small inline function that drives the DIVU directly, as d32xr's `FixedDiv` does, replaces them.
+- **Watch for hidden 64-bit divides.** In C, `((int64_t)dx << 16) / dy` compiles to gcc's `__divdi3`, a slow software routine that never touches the unit. Search the disassembly for `__divdi3` and `__udivdi3`. One road renderer was making about 340 such calls a picture [S32X-SKILL, optimization.md]. A small inline function that drives the DIVU directly, as d32xr's `FixedDiv` does, replaces them.
 
 ## In emulators
 

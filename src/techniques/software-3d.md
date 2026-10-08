@@ -26,7 +26,7 @@ All the renderers here use 16.16 fixed point: a 32-bit integer whose low 16 bits
 
 - **Star Wars Arcade** transforms a point with `MAC.L`s down a column of a 16.16 matrix for each output: `CLRMAC`, four `MAC.L`s, two `STS`, an `XTRCT` and an `ADD` per output [SWA, SH-2 code at `0x060028D0`-`0x06002932`]. See [Registers and instruction set](../sh2/isa.md) for the sequence and [Pipeline](../sh2/pipeline.md#the-multiplier) for how long the multiplier stays busy.
 - **d32xr** multiplies with `DMULS.L` and `XTRCT`, written in C as a 64-bit multiply shifted right by 16, which GCC compiles to the same instructions [D32XR, doomdef.h, sh2_fixed.s]. Its view transform is four multiplies, because Doom's camera only turns about the vertical axis.
-- **The homebrew renderer** also turns only about the vertical axis: a yaw, with a 256-step sine table. Each vertex costs four multiplies to place the object in the world and four to bring it into the camera's view [S32X-SKILL, assets/3d/r3d.c]. The notes advise looking up the camera's sines and cosines once per frame, not per vertex, which saved a racing game about 600 table look-ups a frame <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md]. The example renderer itself still looks them up for every vertex.
+- **The homebrew renderer** also turns only about the vertical axis: a yaw, with a 256-step sine table. Each vertex costs four multiplies to place the object in the world and four to bring it into the camera's view [S32X-SKILL, assets/3d/r3d.c]. The notes advise looking up the camera's sines and cosines once per picture, not per vertex, which saved a racing game about 600 table look-ups a picture <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md]. The example renderer itself still looks them up for every vertex.
 
 If the game's camera never rolls or pitches, use the cheaper form: a 2D rotation and a translation instead of a matrix.
 
@@ -62,7 +62,7 @@ A depth buffer for a 320 × 224 screen at 16 bits a pixel is 140 KB, more than h
 
 ### Comparison sorts
 
-For a few dozen items, an insertion sort is the usual choice: the homebrew renderer and d32xr both use one, on a list built afresh each frame. Objects move little between frames, so a list kept in last frame's order would start nearly sorted, and an insertion sort of a nearly sorted list takes little more than one pass.
+For a few dozen items, an insertion sort is the usual choice: the homebrew renderer and d32xr both use one, on a list built afresh for each picture. Objects move little between pictures, so a list kept in the last picture's order would start nearly sorted, and an insertion sort of a nearly sorted list takes little more than one pass.
 
 Packing an index into the key needs room for every index. d32xr's key has 7 bits for the slot, enough for 128 sprites, but the game allows up to 163. With more than 128 sprites in view, a slot number spills into the scale bits: one sprite would be drawn twice and another not at all [D32XR, r_phase3.c, r_phase8.c]. The 7-bit field dates from when the limit was 128.
 
@@ -75,9 +75,9 @@ With many items, both games use buckets instead, though they come from different
 - **8,192 list heads**, one longword each, 32 KB in all.
 - **Two resolutions.** Depths up to 4,095 get a bucket each. Depths from 4,096 to 32,767 share buckets in groups of 8. Order mistakes show most close to the camera, so that is where the buckets are finest.
 - **Insertion** takes an 8-byte node from a pool (next node, polygon record) and pushes it on the front of its bucket's list.
-- **Reading out** walks every head from far to near, copies each polygon's pointer into a flat list for the other SH-2, and clears the head as it goes, so the table is ready for the next frame with no separate clear. The node pool is then reset to its start.
+- **Reading out** walks every head from far to near, copies each polygon's pointer into a flat list for the other SH-2, and clears the head as it goes, so the table is ready for the next picture with no separate clear. The node pool is then reset to its start.
 
-The walk visits all 8,192 heads every frame, empty or not: tens of thousands of clocks however few polygons there are. That is the price of fine buckets.
+The walk visits all 8,192 heads for every picture, empty or not: tens of thousands of clocks however few polygons there are. That is the price of fine buckets.
 
 **After Burner Complete** [AB32X, SH-2 code at `0x06003B66`-`0x06003BF4`]:
 
@@ -117,7 +117,7 @@ Clipping a polygon against the screen edges means finding where its edges cross 
 Every renderer here fills polygons one horizontal span at a time. It walks the left and right edges down the screen, stepping each edge's *x* by its slope, *dx*/*dy*, for each row. The slope is the one divide per edge.
 
 - **Slopes from a table (Star Wars Arcade).** At start-up the game builds 8,192 words of 32,768 ÷ *n* with the division unit [SWA, SH-2 code at `0x06000EFE`]. An edge's slope is then *dx* × table[*dy*] with one `MULS.W`, doubled to give 16.16 [SWA, on-chip code at `0xC00002B2`-`0xC00002C0`]. No divide is left in the rasteriser.
-- **A divide per row (the homebrew renderer)** recomputes the edges' *x* with a 64-bit divide on every row, which GCC turns into a library call. Another homebrew game measured what replacing that with precomputed 16.16 slopes is worth: from 7 to 14.6 frames per second <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md].
+- **A divide per row (the homebrew renderer)** recomputes the edges' *x* with a 64-bit divide on every row, which GCC turns into a library call. Another homebrew game measured what replacing that with precomputed 16.16 slopes is worth: from 7 to 14.6 pictures a second <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md].
 - **Write words.** A flat-shaded span is one colour, so put the colour byte in both halves of a word and write two pixels at a time, with a byte store for an odd pixel at either end ([Shapes: everything is a span](2d-effects.md#shapes-everything-is-a-span)).
 
 Star Wars Arcade's rasteriser has three more tricks worth copying [SWA, on-chip code at `0xC0000000`-`0xC0000248`]:
@@ -132,13 +132,13 @@ Star Wars Arcade's Slave does not write most of its pixels itself. It makes the 
 
 1. **The producer** is the 2 KB routine in the Slave's on-chip RAM ([Two-way mode](../sh2/cache.md#two-way-mode-2-kb-of-on-chip-ram)), run once per polygon in the Master's list. It does the clipping and edge set-up above and appends each trapezoid as a 24-byte record to a ring of 1,000 in SDRAM: left *x* and slope, right *x* and slope (all 16.16), first line, height and colour word. It masks interrupts while it adds a record, and waits if fewer than four places are free.
 2. **The consumer** is the watchdog's interrupt handler, also in on-chip RAM ([The watchdog timer](../sh2/timers.md#the-watchdog-timer)). Each time it runs it does one step of a small state machine:
-   - **Clearing.** It clears one screen line with a 161-word auto fill and sets the timer to interrupt again 480 clocks later, about the time that fill takes. The frame's 224 lines are cleared this way, one interrupt each, while the producer fills the ring.
+   - **Clearing.** It clears one screen line with a 161-word auto fill and sets the timer to interrupt again 480 clocks later, about the time that fill takes. The picture's 224 lines are cleared this way, one interrupt each, while the producer fills the ring.
    - **Stars.** Then it plots the starfield as single pixels.
    - **Trapezoids.** Then it takes trapezoids off the ring. For each line it rounds the two edges to pixels. A span of 6 pixels or fewer it writes with byte stores. A wider one it writes as an odd byte at either end and an auto fill for the words between. After a fill of 80 pixels or more it returns and sets the timer for 512 clocks, so the producer runs while the VDP fills. Shorter fills it waits for, and carries on.
    - **Idle.** With the ring empty, it sets the timer to look again about 260 clocks later.
-3. **At the end of the frame** the Slave waits until the ring is empty and the state machine idle, stops the timer, and swaps the frame buffers.
+3. **At the end of the picture** the Slave waits until the ring is empty and the state machine idle, stops the timer, and swaps the frame buffers.
 
-Two things make this pay. The VDP fills a word in 3 clocks without the CPU, so a long span costs the CPU only the few register writes that start it ([Auto fill](../32x/vdp.md#auto-fill)). And because the timer brings the CPU back after 512 clocks, enough for the widest line (160 words, 487 clocks by the manual's formula), the CPU never polls FEN while a long fill runs: it does the set-up for the next polygons instead. The design depends on knowing how long a fill takes, which is fixed by the hardware. The wait is the same for every long fill, so after a narrower span the VDP finishes early and sits idle until the timer fires: an 80-pixel span (40 words) takes about 127 clocks. Short spans are still polled. The PWM interrupt, at a higher level, can also break into the handler ([Case study: Star Wars Arcade](../patterns/case-study-starwars.md#one-frame-from-game-logic-to-the-screen)).
+Two things make this pay. The VDP fills a word in 3 clocks without the CPU, so a long span costs the CPU only the few register writes that start it ([Auto fill](../32x/vdp.md#auto-fill)). And because the timer brings the CPU back after 512 clocks, enough for the widest line (160 words, 487 clocks by the manual's formula), the CPU never polls FEN while a long fill runs: it does the set-up for the next polygons instead. The design depends on knowing how long a fill takes, which is fixed by the hardware. The wait is the same for every long fill, so after a narrower span the VDP finishes early and sits idle until the timer fires: an 80-pixel span (40 words) takes about 127 clocks. Short spans are still polled. The PWM interrupt, at a higher level, can also break into the handler ([Case study: Star Wars Arcade](../patterns/case-study-starwars.md#one-picture-from-game-logic-to-the-screen)).
 
 This is something no emulator in the sources shows faithfully. Upstream PicoDrive writes each fill's pixels the instant it starts, though it keeps FEN set for about as long as the manual's formula ([Auto fill](../32x/vdp.md#auto-fill)). It has no bus contention, so what the overlap saves on a console cannot be measured there.
 
@@ -146,7 +146,7 @@ This is something no emulator in the sources shows faithfully. Upstream PicoDriv
 
 Objects that look the same from every side, or from a few sides, are cheaper drawn as scaled sprites ("billboards") than as polygons.
 
-- **After Burner Complete** builds almost its whole world this way: ground objects, enemies, missiles and clouds are sprites, positioned by the projection above, sorted into buckets, and drawn by the scaler ([After Burner Complete's scaler](2d-effects.md#after-burner-completes-scaler)). Up to 92 sprites a frame in play, at 30 frames per second <span class="tag emulator">emulator</span> [AB32X, sprite list length watched in PicoDrive].
+- **After Burner Complete** builds almost its whole world this way: ground objects, enemies, missiles and clouds are sprites, positioned by the projection above, sorted into buckets, and drawn by the scaler ([After Burner Complete's scaler](2d-effects.md#after-burner-completes-scaler)). Up to 92 sprites a picture in play, at 30 pictures a second <span class="tag emulator">emulator</span> [AB32X, sprite list length watched in PicoDrive].
 - **d32xr** draws Doom's monsters and items as sprites among polygon walls [D32XR, r_phase3.c, r_phase8.c]:
   - **Eight views.** The angle from the viewer to the object, less the way it faces, picks one of eight pictures. Mirrored views are drawn from the same picture with a negative step, and a flag in the top bits of the picture number says so, together with a flag for objects that look the same from every side.
   - **Scale.** One divide gives the scale across; the scale down is that times a stretch factor, so any size of view keeps Doom's pixel shape.
@@ -157,7 +157,7 @@ Objects that look the same from every side, or from a few sides, are cheaper dra
 
 The renderers split the work in three different ways:
 
-- **By stage: Star Wars Arcade.** The Master transforms and sorts, the Slave draws, a frame behind ([A pipeline: geometry on the Master, pixels on the Slave](../patterns/cpu-split.md#a-pipeline-geometry-on-the-master-pixels-on-the-slave)).
+- **By stage: Star Wars Arcade.** The Master transforms and sorts, the Slave draws, a picture behind ([A pipeline: geometry on the Master, pixels on the Slave](../patterns/cpu-split.md#a-pipeline-geometry-on-the-master-pixels-on-the-slave)).
 - **By job and by screen area: d32xr** [D32XR, marsnew.c, mars.h, r_phase2.c, r_phase6.c, r_phase7.c, r_phase8.c]:
   - **Walls are pipelined, then shared.** While the Master walks the BSP and emits walls, the Secondary prepares each one as it appears, using a communication port as the count of walls emitted and prepared. Then both CPUs draw walls from the same list, each claiming the next undrawn wall under a lock. Long walls are cut into pieces first, so the work divides finely. Each CPU replays the coverage updates of the walls the other drew.
   - **Floors and ceilings** are taken one at a time from a shared counter. They are sorted first, largest first and grouped by texture.
@@ -170,7 +170,7 @@ The homebrew notes suggest starting smaller: let the Slave clear the frame buffe
 ## Other kinds of 3D
 
 - **Wireframe.** Project the points and draw the edges as lines: no fill, no sort. Several homebrew games are built entirely this way [S32X-SKILL, references/software-3d.md].
-- **Static scenes drawn once.** A homebrew brick-breaking game with a fixed camera drew its 3D tunnel every frame; drawing it once at start-up and copying it raised the frame rate from 14.6 to 29, and redrawing only the areas that changed took it to 60 <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md].
+- **Static scenes drawn once.** A homebrew brick-breaking game with a fixed camera drew its 3D tunnel for every picture; drawing it once at start-up and copying it raised the frame rate from 14.6 to 29, and redrawing only the areas that changed took it to 60 <span class="tag emulator">emulator</span> [S32X-SKILL, references/optimization.md].
 - **Tracks from a list of bends.** A track stored as segments of {curve, slope, length} is expanded into centre points with a heading, and the road edges are those points plus and minus half its width across: two triangles per segment. Walking each strip of road as one shape, row by row, needs about 6 divides per segment instead of about 30 for the same area as separate triangles [S32X-SKILL, references/software-3d.md, references/optimization.md].
 - **Animated figures.** The homebrew fighting games draw each fighter as 13 tapered prisms on an 18-point skeleton, interpolating between stored key poses [S32X-SKILL, references/software-3d.md].
 - **Check the axes first.** Steering that turns the wrong way, or scenery that shrinks as you drive towards it, means an axis sign is wrong. Test early that approaching objects grow [S32X-SKILL, references/software-3d.md].
@@ -195,7 +195,7 @@ The notes' measurements, here and throughout, come from PicoDrive, read from a f
 
 ## What to take away
 
-- Spend the effort on the fill: everything else is a small share of the frame.
+- Spend the effort on the fill: everything else is a small share of the time a picture takes.
 - Use 16.16 fixed point with `DMULS.L` or `MAC.L` and `XTRCT`; skip the matrix if the camera only turns.
 - Divide once per vertex at most, with the division unit started early, a fine table, or a bias that keeps the divisor away from 0. Take edge slopes from a table of reciprocals.
 - Cull before you sort, and sort with buckets once there are hundreds of faces; put the fine buckets close to the camera.

@@ -21,7 +21,7 @@ The table explains the shape of every program below. The SH-2s can reach the car
 
 ## What the shipped programs moved
 
-| Program | 68000 → SH-2s, per frame | What the SH-2s read for themselves |
+| Program | 68000 → SH-2s, per picture | What the SH-2s read for themselves |
 |---------|--------------------------|------------------------------------|
 | Mortal Kombat II | A 668-byte block of game state through the ports, ten bytes per handshake ([Bulk data through the ports](../32x/communication.md#bulk-data-through-the-ports)) | Fighter graphics, drawn straight from their run-length form in the cartridge; packed data, unpacked by the Master ([Compression](../techniques/compression.md#propack-on-the-sh-2-mortal-kombat-ii)) |
 | After Burner Complete | One call per object: its parameters in the ports and in the FIFO's unused address and length registers ([One call per object](../32x/communication.md#one-call-per-object)) | Compressed sprites, decoded on first use into a cache in SDRAM ([A cache of decoded sprites](../techniques/memory.md#a-cache-of-decoded-sprites)) |
@@ -30,7 +30,7 @@ The table explains the shape of every program below. The SH-2s can reach the car
 | ECCO CinePak demo | Nothing | The movie, read a byte at a time through the cache-through cartridge view ([Cache discipline](cache.md#data-from-outside)) |
 | d32xr | Nothing in its cartridge build; in its Mega-CD build, video chunks through the FIFO | Its whole data file, used in place in the cartridge, with textures copied into a cache when needed ([Leave it in the cartridge](../techniques/memory.md#leave-it-in-the-cartridge)) |
 
-Sources: [MK2; AB32X; SWA; MCX; ECCO; D32XR, as linked]. None of the four retail games arms the FIFO ([DREQ and the FIFO](../32x/fifo.md#agreeing-on-start-and-end)); Knuckles' Chaotix, the fifth read for this book, sends the Master its command lists through it ([Knuckles' Chaotix: command lists](../32x/fifo.md#knuckles-chaotix-command-lists)). Their 68000s send small amounts every frame, and the SH-2s fetch the bulk themselves.
+Sources: [MK2; AB32X; SWA; MCX; ECCO; D32XR, as linked]. None of the four retail games arms the FIFO ([DREQ and the FIFO](../32x/fifo.md#agreeing-on-start-and-end)); Knuckles' Chaotix, the fifth read for this book, sends the Master its command lists through it ([Knuckles' Chaotix: command lists](../32x/fifo.md#knuckles-chaotix-command-lists)). Their 68000s send small amounts for every picture, and the SH-2s fetch the bulk themselves.
 
 ## Drawing off screen and copying: Motocross Championship
 

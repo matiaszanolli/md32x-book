@@ -49,7 +49,7 @@ Sources: [SWA], [MK2], [AB32X], [CHAOTIX], bitmap mode register and palette read
 
 The default, PRI = 0 and no through bits, puts the Mega Drive on top. The 32X draws the full screen behind it, and the Mega Drive's tiles cover it wherever they are not transparent. Star Wars Arcade does exactly this. Its 32X frame buffer holds only the scene, and the X-wing cockpit, score and timer are Mega Drive tiles in front of it [SWA, 32X frame buffer at frame 1600]. Virtua Racing does the same with its race HUD [VRD-NOTES, analysis/RENDERING_PIPELINE.md §9]. In After Burner Complete the Mega Drive draws the player's own jet as well as the HUD, so the one object that is always on screen, and always the same size, costs the SH-2 nothing [AB32X, 32X frame buffer during play].
 
-What this buys: the HUD costs the SH-2s nothing, never has to be redrawn into the frame buffer, and can change on the 68000's schedule. Text, which the Mega Drive draws well from a font in VRAM, stays off the 32X entirely. The 32X has to fill every pixel of its layer each frame, because anything not covered by a Mega Drive tile is visible.
+What this buys: the HUD costs the SH-2s nothing, never has to be redrawn into the frame buffer, and can change on the 68000's schedule. Text, which the Mega Drive draws well from a font in VRAM, stays off the 32X entirely. The 32X has to fill every pixel of its layer in each picture, because anything not covered by a Mega Drive tile is visible.
 
 ### Mega Drive behind: 32X objects over a tile background
 
@@ -57,9 +57,9 @@ Mortal Kombat II turns it round. PRI stays 0, but 255 of its 256 palette entries
 
 By the rule above this is the same picture as PRI = 1 with the through bit on entry 0 only. Knuckles' Chaotix makes its picture the other way: PRI = 1, with the through bit on entry 0, the field its characters are drawn on, and on 122 other entries [CHAOTIX, bitmap mode register `$8081` and palette read in PicoDrive]. The choice costs nothing either way: the palette data carries the bit, so it is set once when the palette is built.
 
-What this buys: the arena is Mega Drive tiles, scrolled and animated by the Mega Drive VDP at no cost to the SH-2s. The SH-2s draw only the fighters. The rest of the frame buffer is reset to index 0 each frame by the VDP's auto fill, with no CPU writes ([The 32X VDP](vdp.md#auto-fill)). The fighters get the 32X's colour range, and the backgrounds stay in the Mega Drive's.
+What this buys: the arena is Mega Drive tiles, scrolled and animated by the Mega Drive VDP at no cost to the SH-2s. The SH-2s draw only the fighters. The rest of the frame buffer is reset to index 0 for each picture by the VDP's auto fill, with no CPU writes ([The 32X VDP](vdp.md#auto-fill)). The fighters get the 32X's colour range, and the backgrounds stay in the Mega Drive's.
 
-Homebrew written for PicoDrive often sets the through bit on every entry for the same reason: with PRI = 0 and no through bits, a frame drawn on the 32X is hidden wherever the Mega Drive's planes hold opaque tiles [S32X-SKILL, testing.md] <span class="tag emulator">emulator</span>.
+Homebrew written for PicoDrive often sets the through bit on every entry for the same reason: with PRI = 0 and no through bits, a picture drawn on the 32X is hidden wherever the Mega Drive's planes hold opaque tiles [S32X-SKILL, testing.md] <span class="tag emulator">emulator</span>.
 
 ### Masks: one entry that reverses the default
 
@@ -112,7 +112,7 @@ Where an object has to cross from one layer to the other, plan for a small colou
 
 Aerobiz Ultimate's SEGA logo spins on the 32X layer with PRI = 1, then stops exactly on the still logo the Mega Drive has been showing behind it all along. To leave the layer without a visible change <span class="tag emulator">emulator</span> [AU-NOTES, disasm/sh2/master/fb.c, HARDWARE_TESTS.md §8]:
 
-1. Draw the final frame into both frame buffers, so a late swap cannot show anything else.
+1. Draw the final picture into both frame buffers, so a late swap cannot show anything else.
 2. In V-Blank, clear PRI. The Mega Drive logo is now in front, covering the identical 32X one.
 3. A few frames later, in V-Blank, set the layer to blank.
 
