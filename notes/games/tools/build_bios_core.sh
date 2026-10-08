@@ -8,6 +8,8 @@
 # PD_32X_BIOS_DIR=DIR set, this core reads 32X_G_BIOS.BIN (256 bytes),
 # 32X_M_BIOS.BIN (2 KB) and 32X_S_BIOS.BIN (1 KB) from DIR before the game
 # loads, and the boot ROMs run instead. Unset, it behaves as the stock core.
+# With PD_CCR_LOG=FILE it also appends one line per CCR write, however the
+# address was formed: CPU, PC and value.
 # The VRD copy is never modified; WORKDIR mirrors its layout because its
 # libretro.c includes files from ../../../../tools/libretro-profiling.
 set -e
@@ -48,6 +50,14 @@ i = s.index(anchor) + len(anchor)
 j = s.index(old, i)
 assert j - i < 400, 'retro_load_game declarations have changed; update build_bios_core.sh'
 s = s[:j + len(old)] + nl + '   pd_bios_setup();' + nl + s[j + len(old):]
+open(p, 'w', newline='').write(s)
+p = 'pico/32x/sh2soc.c'
+s = open(p, newline='').read()
+old = '  case 0x092: // CCR - cache control; keep the timing model\'s cache in step' + nl
+assert s.count(old) == 1, 'CCR write hook has changed; update build_bios_core.sh'
+s = s.replace(old, old + '    { const char *f = getenv("PD_CCR_LOG"); int l;  /* POSIX: stdio is libretro VFS here */' + nl +
+  '      if (f && *f && (l = open(f, O_WRONLY | O_CREAT | O_APPEND, 0644)) >= 0) { dprintf(l, "%s pc=%08x ccr=%02x\\n", sh2->is_slave ? "slave" : "master", sh2_pc(sh2), d & 0xff); close(l); } }' + nl)
+s = '#include <fcntl.h>' + nl + '#include <unistd.h>' + nl + s
 open(p, 'w', newline='').write(s)
 PY
 make -f Makefile.libretro clean >/dev/null 2>&1 || true

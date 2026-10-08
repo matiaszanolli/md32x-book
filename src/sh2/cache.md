@@ -8,14 +8,14 @@ Each SH-2 has 4 KB of cache, shared between instructions and data. On the 32X it
 |---|---|
 | Size | 4 KB: 64 entries × 4 ways × 16-byte lines |
 | Contents | Instructions and data mixed |
-| Replacement | Pseudo-LRU: the way least recently used is replaced, approximately |
+| Replacement | Least recently used, exactly: six bits per entry, one for each pair of ways, record which of the two was used last, and a miss replaces the way older than the other three. Hitachi calls it pseudo-LRU |
 | Hit | No wait. One access per clock, pipelined with the CPU |
 | Read miss | The whole 16-byte line is read, as four longwords; the one the CPU asked for arrives last |
 | Write | Write-through: every write goes to memory. A write that hits also updates the line; a write that misses does not load one |
 | Control register (CCR) | `0xFFFFFE92`, one byte |
 | When your code starts | Enabled, four-way, nothing from SDRAM in it |
 
-Sources: [SH7604 §8.1, §8.2, §8.4.1, §8.4.2; VRD-NOTES, 32X BIOS dump].
+Sources: [SH7604 §8.1, §8.2, §8.4.1, §8.4.2, §8.4.5 pp.222-223 with Tables 8.3-8.4; VRD-NOTES, 32X BIOS dump].
 
 ## How an address finds its line
 
@@ -134,12 +134,11 @@ Use Ares, in interpreter mode, to test that shared data is purged where it shoul
 
 ## Open questions
 
-- How much does the pseudo-LRU replacement differ from true LRU on real access patterns?
 - How long does a full refill take in practice after a whole-cache purge in a real game loop?
 
 ## Sources
 
-- [SH7604](../appendices/bibliography.md#sh7604): §8.1-8.5 (pp.214-228), §7.11.2
+- [SH7604](../appendices/bibliography.md#sh7604): §8.1-8.5 (pp.214-228), including §8.4.5 pp.222-223 and Tables 8.3-8.4 on replacement; §7.11.2
 - [32X-HWM](../appendices/bibliography.md#32x-hwm): §4.1 p.74 cache-through access, §5.3 p.87
 - [32X-OV](../appendices/bibliography.md#32x-ov): dual SH2's
 - [VRD-NOTES](../appendices/bibliography.md#vrd-notes): 32X BIOS dump; third_party/picodrive/pico/32x/vrd_timing.c
