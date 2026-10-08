@@ -1,0 +1,23 @@
+[book]
+title = "The Mega Drive & 32X Book"
+description = "A complete technical reference and programming guide for the Sega Mega Drive / Genesis, the 32X and the Hitachi SH-2."
+authors = ["Matías Zanolli"]
+language = "en"
+src = "src"
+
+[build]
+create-missing = false   # a typo in SUMMARY.md fails the build instead of creating an empty page
+
+[output.html]
+additional-css = ["theme/tags.css"]
+git-repository-url = "https://github.com/matiaszanolli/md32x-book"   # change if the repo name differs
+edit-url-template = "https://github.com/matiaszanolli/md32x-book/edit/main/{path}"
+site-url = "/md32x-book/"
+
+[output.html.search]
+enable = true
+limit-results = 40
+
+[output.html.fold]
+enable = true
+level = 1

@@ -1,0 +1,59 @@
+# Shared tools for retail ROM analysis
+
+Working material, not part of the book. Run them in a scratch directory.
+
+| Script | Use |
+|--------|-----|
+| `header32x.py ROM [ROM …]` | Verify a 32X cartridge: MD5, header fields, checksum against the `$1A4` end address, user-header SH-2 copy block and entries |
+| `sh2dis.sh ROM OFFSET SIZE NAME` | Extract the SH-2 program (offset and size from the 32X user header at ROM `$3D4`/`$3DC`) to `NAME.bin` and disassemble it to `NAME.txt` with `sh-elf-objdump` |
+| `rng.sh LISTING START END` | Print an address range of the listing |
+| `m68k.py ROM START COUNT` | Disassemble 68000 code with capstone |
+| `build_frontend.sh OUT` | Build the VRD project's headless PicoDrive frontend |
+| `render32x.py DEBUG_OUT PREFIX` | Render 32X frame-buffer dumps read with `--debug-script` |
+| `sheet.py DUMP_DIR OUT.png [COLUMNS]` | Contact sheet of `VRD_VIDEO_DUMP_DIR` frames |
+| `build_dma_core.sh WORKDIR` | Build a copy of the VRD PicoDrive core that logs every 68000-to-VDP DMA to the file named by `PD_DMA_LOG`. Put the `.so` next to the frontend in a scratch directory; the VRD copy is not touched |
+| `dmacheck.py LOG …` | Summarise a DMA log: DMAs read from ROM, and any that cross a 64 KB line inside a 128 KB block or a 128 KB line ([discrepancy 13](../../../src/appendices/discrepancies.md)) |
+| `divuscan.py ROM [ROM …]` | List SH-2 code that loads `0xFFFFFF00` (from a `mov.w`/`mov.l` literal) and then reads (`R`) or writes (`W`) divider registers through it, by offset; whole-ROM scan, so check each hit in a disassembly. Used to find reads of the undocumented `0xFFFFFF1C` ([`src/sh2/divu.md`](../../../src/sh2/divu.md)) |
+| `a151scan.py ROM REG … [--global aN]` | List 68000 instructions that touch the given `$A151xx` registers (e.g. `A15102 A15103`), absolute or through an address register loaded with `$A151xx` earlier in the same run; `--global a5` for programs that keep a base register (Mars Check). Whole-ROM linear scan, so check each hit with `m68k.py`. Used for INTM/INTS ([discrepancy 11](../../../src/appendices/discrepancies.md)) |
+| `profgroups.py GAME PC_CSV FRAMES` / `profgroups.py GAME --samples DEBUG_OUT` | GAME `swa` or `ab`. Group a `VRD_PROFILE_PC` log by role (waits, frame-buffer work, other work, sound) as clocks per frame and share of a 384,000-clock frame; or classify Master/Slave PCs sampled once a frame with a debug script (`run 1` / `regs master` / `regs slave`), for Star Wars Arcade's play, where the profiler hangs the game |
+| `build_nopoll_core.sh WORKDIR` | Build a copy of the VRD PicoDrive core with the 68000's poll detection switched off (`POLL_THRESHOLD` raised). A counted 68000 wait on a communication port that never changes otherwise sleeps forever. Used for the Mars Check Program run in `src/howto/reverse-engineering.md`: patch the Master's mask byte at ROM `$AD83` from `$87` to `$85` and set the header checksum at `$18E` to 0, and the test fails with its own error screen (write 07, read 05) |
+| `build_sleep_core.sh WORKDIR` | Build a copy of the VRD project's PicoDrive core that logs, with `PD_SLEEP_LOG=FILE`, how long each SH-2 sleeps in poll detection per polled address (68000 cycles; × 3 for SH-2 clocks), and writes every PC to the profile log instead of the top 200. Run the frontend from a directory holding a symlink to the built `.so`. The sleep totals run up to a sixth high (the Master's sleep plus executed cycles came to 104% of the run, the Slave's to well over 100%), so use them for proportions |
+| `build_bios_core.sh WORKDIR` | Build a copy of the VRD PicoDrive core, interpreter only (so `VRD_SH2_TIMING=1` works), that runs the real 32X boot ROMs when `PD_32X_BIOS_DIR=DIR` holds `32X_G_BIOS.BIN`, `32X_M_BIOS.BIN` and `32X_S_BIOS.BIN` (e.g. `../32x-playground/32X BIOS`). Stock PicoDrive never loads them (the loader in `platform/common/emu.c` is `#if 0`, upstream `26ecb2b` too), so every other run takes the HLE start in `pico/32x/32x.c`, which never writes CCR: under the timing model a program that does not enable its own cache runs uncached. Used 8 October 2026 for the Aerobiz Ultimate Slave-cache run in [Cache discipline](../../../src/patterns/cache.md#mistakes-the-reference-projects-made): AU zoom test at `0c9d430` (`11f44e3^`, `make 32x-zoomtest`), 500 frames, Slave 12,822,653 accesses, 0 cached, 139,303,827 wait cycles without the boot ROMs; 147,809,178 accesses, 100.0% hit (9 misses), 30,029 wait cycles with them. Mortal Kombat II, 600 frames, which never writes CCR: 0 cached on both CPUs without, 100.0% hit with |
+| `vresscan.py ROM [ROM …]` | Signature scan for the two defects of Sega's VRES sample: which byte of `0x20004006` the RV test reads after the VRES clear (offset 6 or 7, byte or word, through GBR or a register), and the CHCR0 slip (literal `0x000044E0` loaded into the pointer register). Cartridge offsets; a handler of another shape is not matched, so no hit does not mean no defect. Used for [Sega's sample code in the games](../../../src/appendices/sample-code.md). A read "via rN" is not checked to be through the register base: Virtua Racing Deluxe's Slave reads through the r1 its dispatcher left, its own address |
+| `credits.py [-k REGEX] [-c N] ROM …` | Print plain-ASCII runs matching credit keywords (developed, programmed by, studio and company names), with cartridge offsets and N neighbouring runs, so a developer credit can be cited by offset. Credits stored as tiles or compressed text do not show. Used for the developer columns of [Sega's sample code in the games](../../../src/appendices/sample-code.md); results in `notes/games/romset-us.md` |
+| `shcmp.py [--align] [--regs] LIST_A START_A LIST_B START_B [COUNT]` | Compare COUNT instructions of two `sh2dis.sh` listings from given addresses, with PC-relative literals replaced by their values and branch targets by distances. Lockstep by default (`=` identical, `~` same mnemonic); `--align` aligns with difflib and lists matching runs of 3+; `--regs` ignores register names. Sega's 24-instruction FRT set-up matches in every game, so ignore it. Used for [How much else the three share](../../../src/appendices/sample-code.md#how-much-else-the-three-share) |
+| `relsearch.py ROM WORD …` | Relative search for text in an unknown encoding where letters are consecutive codes (tile fonts): bytes and 16-bit words, every alignment; prints offset and the code for `A` |
+| `frame2png.py DUMP_DIR OUT.png FRAME …` | Full-size PNG of chosen frames from a `VRD_VIDEO_DUMP_DIR`, side by side and labelled. Used for the credit screens in `notes/games/credits/` |
+| `build_testpico.sh WORKDIR` | Clone and build notaz's testpico (bibliography TESTPICO) for a console and for PicoDrive with the marsdev toolchain, expanding its sjasm 0.42 macros for the installed 0.39j. Run `testpico--for-pd.bin` for 1,200 frames with a video dump and read the results screen. Upstream PicoDrive `26ecb2b` (built with `make -f Makefile.libretro`) passes 55/57, skips the reset-button test and fails "32x irq vint" ([discrepancy 44](../../../src/appendices/discrepancies.md)) |
+
+## Running a game headless
+
+Run the frontend from `../32x-playground/tools/libretro-profiling` (it loads `picodrive_libretro.so` from the current directory, so a scratch directory holding the frontend and another core also works): `frontend ROM FRAMES [--debug-script FILE]`. Environment variables:
+
+- `VRD_INPUT_SCRIPT`: CSV with a `frame,mask` header and exactly one row per frame (as many rows as FRAMES, or the run stops with "Invalid input script row"). Libretro mask bits: B 1, Y 2, Select 4, Start 8, Up 16, Down 32, Left 64, Right 128, A 256, X 512.
+- `VRD_VIDEO_DUMP_DIR` (must not already hold a manifest), `VRD_VIDEO_DUMP_START`, `VRD_VIDEO_DUMP_END` (< FRAMES), `VRD_VIDEO_DUMP_EVERY`.
+- `VRD_LOAD_STATE`: start from a state saved with the debugger's `save PATH`.
+- `VRD_PROFILE_PC=1` with `VRD_PROFILE_PC_LOG` and `VRD_PROFILE_FRAMES`: cycles per PC for each CPU, top 200 per CPU, written when FRAMES is reached. Idle loops count as work.
+- `VRD_WATCH=ADDR:SIZE,...` with `VRD_WATCH_LOG`: one row per frame with each value. SH-2 addresses are read through the Master; use cache-through (`0x2…`) addresses.
+- Debugger script commands: `run N`, `status`, `regs master|slave`, `read master|slave|68k ADDR SIZE` (4,096 bytes at most), `save PATH`, `quit`.
+
+## Running ares 148 headless
+
+No scripting, so screenshots only: `xvfb-run -n 97 -s "-screen 0 1280x960x24" sh -c 'flatpak run dev.ares.ares --system "Mega 32X" --no-file-prompt ROM & sleep 20; import -window root shot.png; kill $!'`. The ROM must not be under `/tmp` (the flatpak has a private `/tmp`). Add `--setting General/ForceInterpreter=true` for cache or timing questions; with it the `illegal slot instruction: 0xaffe` log notice disappears (checked 2026-10-05 with the hello world ROM). Full write-up: `src/howto/emulator-testing.md`.
+
+## Pitfalls (6 October 2026)
+
+- **`VRD_WATCH` on a 32X register reads it through the Master**, and PicoDrive runs its poll detection on that path (`p32x_sh2_poll_detect`), so a watched VDP register can put the Master to sleep and hang the game (seen in Star Wars Arcade play). Read 32X registers from the 68000 side instead, with a debug script: `run 1` / `read 68k 0xA1518A 2` per frame gives FS.
+- **`VRD_PROFILE_PC` hangs Star Wars Arcade during play** (timer stops a few hundred frames after a save state taken at frame 2100); the same input runs normally without it. The profiler also turns off the SH-2 recompiler (`POPT_EN_DRC`). After Burner Complete profiles fine, and so does Star Wars Arcade's attract mode. In play, sample PCs once a frame instead (`profgroups.py swa --samples`).
+- **The debugger cannot read SH-2 memory before the 32X starts** (frame 2): a `read master` there ends the script. Start with `run 10`.
+- **Profile shares are of executed cycles.** A CPU that PicoDrive has caught polling sleeps and executes nothing, so a CPU's total in the profile can be well under the run's wall-clock clocks (After Burner's Master: 70%). Compare cycles per drawn frame, not shares.
+- **The `count` column is not an execution count** (a poll's `tst` and its `bf` get very different counts); use `total_cycles`.
+- **The input script needs exactly FRAMES rows**, or the run stops at once with "Invalid input script row".
+- **Star Wars Arcade headless:** Start every 150 frames from 200 to 1400 reaches play at about 1500, flying by 2100. Fire alone (B, mask 1) or steering alone keeps it running; fire combined with steering stopped it in one run.
+
+- **The profiler's interpreter changes the frame rate a little.** After Burner Complete from the frame-1,200 state draws 928 pictures in 2,000 frames under `VRD_PROFILE_PC`, 995 without it. Give per-picture figures from the same run as the profile.
+- **The core in `../32x-playground/tools/libretro-profiling` is a September 2026 build.** Runs with a core built from the current source tree (e.g. `build_sleep_core.sh`) can follow a different path through the same input; the After Burner fill figures of the earlier run (202M clocks in the sky/sea routine) were not reproduced (95M, plus 47M in the plain clear at `0x0600D0C8`).
+
+## Wanted
+
+- **Coverage log in the headless front end.** `VRD_PROFILE_PC` keeps only the 200 busiest addresses per CPU. Recording each distinct address executed, per CPU, would show all code that ran, which [the disassembly chapter](../../../src/howto/reverse-engineering.md#data-that-looks-like-code) uses to find routines reached through tables. It needs a change in the VRD project's PicoDrive patch (`../32x-playground/tools/libretro-profiling`), whose working tree has uncommitted work, so it has not been written.

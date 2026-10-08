@@ -1,0 +1,8 @@
+/book/
+/sources/*
+!/sources/README.md
+
+# Extracts of retail ROM code (regenerate with notes/games/tools)
+/notes/**/*.bin
+/notes/games/mcx/mcx_romwindow.txt
+/notes/games/mcx/mcx_100400.txt

@@ -1,0 +1,20 @@
+/* How sure we are about a claim. Usage: <span class="tag tested">tested</span> */
+.tag {
+  display: inline-block;
+  padding: 0 .45em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: .8em;
+  line-height: 1.5;
+  vertical-align: .1em;
+  white-space: nowrap;
+}
+.tag.tested   { color: #2e8540; background: rgba(46,133,64,.10); }   /* confirmed on real hardware */
+.tag.manual   { color: #2f6fb0; background: rgba(47,111,176,.10); }  /* stated in an official document, not yet tested */
+.tag.emulator { color: #a8660a; background: rgba(168,102,10,.10); }  /* seen in an emulator only */
+.tag.disputed { color: #b3261e; background: rgba(179,38,30,.10); }   /* sources disagree, see the discrepancies appendix */
+
+.coal .tag.tested, .navy .tag.tested, .ayu .tag.tested       { color: #6cc581; }
+.coal .tag.manual, .navy .tag.manual, .ayu .tag.manual       { color: #7fb2e5; }
+.coal .tag.emulator, .navy .tag.emulator, .ayu .tag.emulator { color: #e2a74f; }
+.coal .tag.disputed, .navy .tag.disputed, .ayu .tag.disputed { color: #f08a82; }
