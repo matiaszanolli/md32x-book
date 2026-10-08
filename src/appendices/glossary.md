@@ -75,6 +75,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | FM | Bit 15 of the 32X adapter control register. Decides whether the 68000 (0) or the SH-2s (1) may use the 32X VDP, palette and frame buffer. |
 | FM synthesis | Making sounds by letting oscillators (operators) modulate each other's frequency. The YM2612 has six FM channels of four operators each. |
 | Fog of war | Hiding the parts of a map no friendly unit can currently see, usually showing explored areas as they were last seen. |
+| Frame | One refresh of the television picture, 1/60 of a second on NTSC and 1/50 on PAL. Not the same as a picture: a game drawing at 30 a second shows each picture for two frames. The frame rate is the number of pictures drawn a second. See [Frames and pictures](../conventions.md#frames-and-pictures). |
 | Frame buffer | Memory holding the picture the 32X shows. There are two, and the program draws in one while the other is displayed. |
 | FRT | The SH-2's 16-bit free-running timer. On the 32X it is reserved for Sega's interrupt workaround, which flips its output pin in every interrupt handler. |
 | FS | Bit 0 of the 32X frame buffer control register. Chooses which of the two frame buffers is displayed. The swap happens at the next vertical blank. |
@@ -127,6 +128,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | PEN | A read-only bit of the 32X frame buffer control register. It is 1 while the palette may be accessed. |
 | Peripheral ID | The four-bit code a device on a controller port reports through its direction lines, read once with TH at 1 and once at 0: `$D` a pad, `$3` a mouse, `$7` a Team Player, `$F` nothing connected. |
 | Periodic noise | The PSG noise mode in which a single bit circles round the shift register, giving a buzzy tone one sixteenth of the noise rate. The other mode is white noise. |
+| Picture | One complete image a program draws and shows, lasting one or more frames. Counted in pictures a second, the frame rate. See [Frames and pictures](../conventions.md#frames-and-pictures). |
 | Pipeline | The SH-2 works on up to five instructions at once, each at a different stage (fetch, decode, execute, memory access, write back). That is how it finishes most instructions in one clock. |
 | Plane | One of the VDP's scrolling tile layers, A or B, described by a name table in VRAM. |
 | PRI | Bit 7 of the 32X bitmap mode register. 0 puts the Mega Drive picture in front of the 32X picture, 1 the reverse; a colour's through bit reverses it for that colour. |
