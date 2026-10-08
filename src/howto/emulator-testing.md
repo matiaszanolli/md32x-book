@@ -12,7 +12,7 @@ This book uses two emulators, and they answer different questions.
 
 | | PicoDrive (libretro core) | ares 148 |
 |---|---|---|
-| Boot | Without a BIOS it copies the SH-2 program from the user header itself and starts both CPUs: no security check, no SDRAM test, no boot ROM register set-up [PICODRIVE, pico/32x/32x.c] | Runs Sega's real boot ROMs, byte-identical to the dumps [AU-NOTES, hardware tests] |
+| Boot | Never runs the boot ROMs: its loader for them is compiled out. It copies the SH-2 program from the user header itself and starts both CPUs: no security check, no SDRAM test, no boot ROM register set-up [PICODRIVE, platform/common/emu.c, pico/32x/32x.c] | Runs Sega's real boot ROMs, byte-identical to the dumps [AU-NOTES, hardware tests] |
 | Control from a script | Full: the libretro interface lets a small C program run frames, press buttons and read memory | None from the command line: no input scripts, no frame capture, no debugger for the 32X [AU-NOTES, hardware tests] |
 | SH-2 cache | Not modelled; the cache control register is ignored [PICODRIVE, pico/32x/sh2soc.c] | Modelled, but only in the interpreter (below) [ARES, component/processor/sh2] |
 | Access costs | Almost none ([Access timing](../32x/timing.md#in-emulators)) | One fixed cost per region ([Access timing](../32x/timing.md#in-emulators)) |
@@ -123,7 +123,7 @@ An oracle is a second, trusted implementation to compare against.
 An emulator is a model with holes, and some holes hide whole classes of bug.
 
 - **PicoDrive never lets a 68000 time out.** After eleven reads of a communication port less than 64 cycles apart, it stops the 68000 until an SH-2 writes one. A wait loop with a time-out therefore never reaches the time-out, and every "the SH-2 did not answer" path is dead code under PicoDrive. To test such a path, space the reads out: a short delay between them is enough. One project did that and saw 95 of 340 calls fall back correctly [AU-NOTES, known issues; PICODRIVE, pico/32x/memory.c].
-- **PicoDrive's quiet start.** Without a BIOS, nothing checks the cartridge layout or Sega's initial program, and the boot ROMs' own set-up never runs: no SDRAM test, and no write that switches the cache on [PICODRIVE, pico/32x/32x.c]. PicoDrive has no cache to switch on, but a timing model added to it does, and it will see a program that never enabled its cache. One project drew a conclusion about the Slave's cache from such a run that the real boot ROMs later put in doubt [AU-NOTES, hardware tests].
+- **PicoDrive's quiet start.** PicoDrive never runs the boot ROMs, so nothing checks the cartridge layout or Sega's initial program, and the boot ROMs' own set-up never happens: no SDRAM test, and no write that switches the cache on [PICODRIVE, platform/common/emu.c, pico/32x/32x.c]. PicoDrive has no cache to switch on, but a timing model added to it does, and under it a program that does not enable its own cache runs uncached. One project concluded from such a run that its Slave had never enabled its cache. Rerun with the boot ROMs loaded, the cache was on all along ([Mistakes the reference projects made](../patterns/cache.md#mistakes-the-reference-projects-made)) <span class="tag emulator">emulator</span> [AU-NOTES, HISTORY, hardware tests].
 - **The palette.** PicoDrive accepts a palette write during the display; ares makes it wait; on a console it waits up to a line ([Colours and the palette](../32x/vdp.md#colours-and-the-palette)). One project shipped its first fix for a difference between the two emulators here, on a menu fade [AU-NOTES, hardware tests].
 - **Timing.** Neither emulator charges the manual's access costs, the competition between the CPUs, or the frame buffer's write buffer ([Access timing](../32x/timing.md#in-emulators)). In PicoDrive, switching the cache on changes the measured time by exactly nothing, which says something about the emulator, not about whether the cache was on [AU-NOTES, known issues].
 - **Access without FM.** Both emulators drop a frame buffer or VDP write from the CPU without FM; the manual says it waits ([discrepancy 34](../appendices/discrepancies.md)).
@@ -154,6 +154,6 @@ A behaviour that passes in both emulators is worth taking to a console. A behavi
 
 - [S32X-SKILL](../appendices/bibliography.md#s32x-skill): harness; testing notes; porting notes
 - [VRD-NOTES](../appendices/bibliography.md#vrd-notes): libretro profiling front end (`tools/libretro-profiling/profiling_frontend.c`); VR60 status (`VR60_STATUS.md`)
-- [AU-NOTES](../appendices/bibliography.md#au-notes): known issues (`KNOWN_ISSUES.md`); hardware tests (`HARDWARE_TESTS.md`, the ares section); comparison notes
-- [PICODRIVE](../appendices/bibliography.md#picodrive): pico/32x/32x.c, memory.c, sh2soc.c
+- [AU-NOTES](../appendices/bibliography.md#au-notes): known issues (`KNOWN_ISSUES.md`); HISTORY; hardware tests (`HARDWARE_TESTS.md`, the ares section); comparison notes
+- [PICODRIVE](../appendices/bibliography.md#picodrive): pico/32x/32x.c, memory.c, sh2soc.c; platform/common/emu.c
 - [ARES](../appendices/bibliography.md#ares): version 148, component/processor/sh2 (cache, recompiler)

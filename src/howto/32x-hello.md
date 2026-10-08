@@ -119,7 +119,7 @@ Two things went wrong while this ROM was written, and both are easy to repeat:
 ## Running it
 
 - **ares 148** runs the real 32X boot ROMs, so the security check, the SDRAM test and the copy all happen as on a console. The ROM shows both squares and the changing bar at 60 frames per second <span class="tag emulator">emulator</span> [ARES].
-- **The libretro build of PicoDrive** does not load the 32X boot ROMs. Instead it copies the SH-2 program from the user header itself and starts both CPUs, so it skips the security check and the SDRAM test [PICODRIVE, pico/32x/32x.c]. The ROM runs the same there. A ROM with a broken initial program would also run there, so test a new layout in ares first <span class="tag emulator">emulator</span>.
+- **The libretro build of PicoDrive** does not load the 32X boot ROMs, and neither do PicoDrive's other builds: the loader in its source is compiled out. Instead it copies the SH-2 program from the user header itself and starts both CPUs, so it skips the security check and the SDRAM test [PICODRIVE, platform/common/emu.c, pico/32x/32x.c]. The ROM runs the same there. A ROM with a broken initial program would also run there, so test a new layout in ares first <span class="tag emulator">emulator</span>.
 
 ## What this leaves out
 
@@ -143,4 +143,4 @@ Two things went wrong while this ROM was written, and both are easy to repeat:
 - [32X-HWM](../appendices/bibliography.md#32x-hwm): §5.1 (user header, boot ROM)
 - [VRD-NOTES](../appendices/bibliography.md#vrd-notes): 32X BIOS dump (vector ROM table)
 - [ARES](../appendices/bibliography.md#ares): version 148
-- [PICODRIVE](../appendices/bibliography.md#picodrive): pico/32x/32x.c (boot without the BIOS)
+- [PICODRIVE](../appendices/bibliography.md#picodrive): pico/32x/32x.c (boot without the BIOS), platform/common/emu.c (the compiled-out BIOS loader)
