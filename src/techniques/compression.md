@@ -4,7 +4,7 @@ A Mega Drive cartridge holds a few megabytes, and a 32X game's art is 8 bits a p
 
 Four questions decide the format:
 
-1. **Which CPU decompresses it?** The 68000 has 16-bit registers and slow shifts; an SH-2 has 32-bit registers and a cache, and can read the cartridge directly.
+1. **Which CPU decompresses it?** The 68000 has a 16-bit bus and slow multi-bit shifts; an SH-2 runs at three times the clock, has a cache, and can read the cartridge directly.
 2. **Where does the output go?** RAM is easy. VRAM and the 32X frame buffer are not: each is behind a port or has write rules of its own.
 3. **Is it decoded once, or every time it is drawn?** A level loaded once can use a slow, tight format. A sprite drawn in every picture needs a format the drawing loop can read directly, or a cache of decoded copies.
 4. **Must it keep pace with something?** Sound is decoded inside an interrupt, sample by sample, and needs a format whose cost per sample is fixed.
@@ -29,7 +29,7 @@ The copy runs forwards, a byte at a time, so a reference may overlap the bytes i
 
 Koei's format squeezes the lengths and distances into variable-length bit codes, and mixes three kinds of data into one input stream [AB-DISASM, disasm/modules/68k/boot/EarlyInit.asm `LZ_Decompress`, `$003FEC`-`$00423F`; AU-NOTES, tools/lz_decompress.py]:
 
-- **Flags.** A control byte gives the next eight flags, top bit first. A 1 means a literal, a 0 a back-reference. The routine keeps the control byte in RAM and shifts it by adding it to itself, which puts the next flag in the top bit.
+- **Flags.** A control byte gives the next eight flags, top bit first. A 1 means a literal, a 0 a back-reference. The routine keeps the control byte in RAM. For each item it loads the byte and tests bit 7 with `btst`. After the item it adds the byte in RAM to itself, which moves the next flag up into bit 7. The carry from that add is not used.
 - **One stream.** Control bytes, literal bytes and 16-bit words of length and distance bits all come from the same pointer, in the order the decoder needs them. The bit words are stored low byte first and read a byte at a time, so the stream needs no alignment. A new word is read only when a code needs more bits than are left, so the compressor must put each one exactly where the decoder will run out.
 - **Bit reader.** It keeps a 16-bit window of upcoming bits. The decoder compares the whole window with thresholds to find which code is there, then removes that many bits in one call, shifting in new bits through a table of 17 masks at `$04684C`. A back-reference makes at most two calls, one for the length and one for the distance. A literal makes none.
 - **Lengths** use a gamma code: a run of zeros says how many value bits follow.
@@ -49,7 +49,7 @@ Koei's format squeezes the lengths and distances into variable-length bit codes,
 
 Both codes are complete: every bit pattern decodes to something, so no code space is wasted.
 
-The game calls this routine from 123 places, nearly always to unpack graphics into a buffer at `$FF1804` and then DMA them to VRAM [AB-DISASM, EarlyInit.asm; AU-NOTES, ROADMAP.md U-046]. The largest block is 27,872 bytes. Two of the project's own documents give 92 and 86 call sites; both miss calls written as raw data words.
+The game calls this routine from 123 places, nearly always to unpack graphics into a buffer at `$FF1804` and then DMA them to VRAM [AB-DISASM, EarlyInit.asm; AU-NOTES, ROADMAP.md U-046]. The largest block is 27,872 bytes. (Counts that skip calls written as raw data words come out lower.)
 
 ### Decompressing straight into VRAM
 
@@ -59,27 +59,29 @@ Aerobiz Supersonic also has a second copy of the same decoder that writes to VRA
 - **Reading a back-reference** sets a read address and reads a word, two more port instructions per byte [AB-DISASM, vdp/VRAMWriteWithMode.asm, `$0042BA`].
 - **Interrupts are masked around every access**, so the vertical interrupt cannot change the VDP's address between the halves of the operation ([The VDP remembers half a command](../megadrive/vdp.md#the-vdp-remembers-half-a-command)).
 
-It is used once, during the intro, to load the font: 3,866 bytes unpacked to 10,112 bytes (316 tiles) at VRAM `$4000`, with the display and the vertical interrupt switched off around it [AB-DISASM, sound/ClearSoundBuffer.asm, GameSetup1.asm]. That is the right use for a slow path: once, early, and when RAM is short. (The disassembly's names for these routines describe other things; the labels above are the ones it uses.)
+It is used once, during the intro, to load the font: 3,866 bytes unpacked to 10,112 bytes (316 tiles) at VRAM `$4000`, with the display and the vertical interrupt switched off around it [AB-DISASM, sound/ClearSoundBuffer.asm, GameSetup1.asm]. That is the right use for a slow path: once, early, and when RAM is short. The file names cited here are the disassembly's own, and some are misnomers: the font load, for instance, is in `sound/ClearSoundBuffer.asm`.
 
 ### ProPack on the SH-2 (Mortal Kombat II)
 
-Mortal Kombat II packs its SH-2 data with Rob Northen's ProPack, a commercial packer of the time. Each file starts with an 18-byte header that begins `RNC` and a method number, followed by the unpacked and packed sizes. The cartridge holds 47 method-2 files, 1.09 MB unpacked and 396 KB packed, 36% of their size; the largest unpacks to 99,132 bytes [MK2, ROM scan for `RNC\x02` headers]. The Master unpacks them straight from the cartridge into SDRAM with a 398-byte routine called from about 30 places [MK2, SH-2 code at `0x06002DF4`-`0x06002F84`]:
+Mortal Kombat II packs its SH-2 data with Rob Northen's ProPack, a commercial packer of the time. Each file starts with an 18-byte header that begins `RNC` and a method number, followed by the unpacked and packed sizes. The cartridge holds 47 method-2 files, 1.09 MB unpacked and 396 KB packed, 36% of their size; the largest unpacks to 99,132 bytes [MK2, ROM scan for `RNC\x02` headers]. The Master unpacks them straight from the cartridge into SDRAM with a 402-byte routine called from about 30 places. Its last instruction is the `nop` in the delay slot of its `rts`, at `0x06002F84` [MK2, SH-2 code at `0x06002DF4`-`0x06002F84`]:
 
 - It skips the header. Sizes and checksums are not checked; the data is trusted.
 - **Flags and codes share one bit stream**, top bit first, refilled a byte at a time. Literal and length bytes come from the same pointer between refills.
-- **Items:** a single literal byte; a block of literal bytes, (4-bit count + 3) × 2 of them, copied two at a time; or a back-reference of 2 or more bytes, with longer lengths given by a whole byte plus 8. The distance is a few bits for the high part plus a whole byte for the low part.
+- **Items:** a single literal byte; a block of (4-bit count + 3) × 4 literal bytes, copied two bytes at a time, in (count + 3) × 2 passes; or a back-reference of 2 or more bytes, with longer lengths given by a whole byte plus 8. The distance is a few bits for the high part plus a whole byte for the low part.
 - **A length byte of 0** ends a chunk, and one more flag says whether another chunk follows.
+
+This description is complete enough to decode the data. A decoder written from it, run over all 47 method-2 files, produces exactly the unpacked size each header gives, and the CRC-16 in each header matches the output [MK2, every `RNC\x02` file decoded and checked].
 
 ### ProPack on the 68000 (Mortal Kombat II)
 
-The other 33 ProPack files in the cartridge are method 1: 566 KB unpacked, 273 KB packed, 48% [MK2, ROM scan for `RNC\x01` headers]. Method 1 adds **Huffman codes**, which give common values short bit patterns. Each chunk of the file starts with its own code tables. The SH-2 program has no method-1 unpacker. The 68000 has three, all of which rebuild three 128-byte decoding tables on the stack for each chunk [MK2, 68000 code at `$00CFF8`, `$00D186`, `$0292F4`]:
+The other 33 ProPack files in the cartridge are method 1: 553 KB unpacked, 267 KB packed, 48% [MK2, ROM scan for `RNC\x01` headers]. A standard method-1 decoder unpacks all 33 to their header's size and CRC as well [MK2, every `RNC\x01` file decoded and checked]. Method 1 adds **Huffman codes**, which give common values short bit patterns. Each chunk of the file starts with its own code tables. The SH-2 program has no method-1 unpacker. The 68000 has three, all of which rebuild three 128-byte decoding tables on the stack for each chunk [MK2, 68000 code at `$00CFF8`, `$00D186`, `$0292F4`]:
 
-- **Into work RAM** (`$00CFF8`, and `$0292F4`, which first moves the packed data out of the way if it overlaps the output). Two of the three callers of `$0292F4` check for the four bytes `RNC`, 1 first, so the same call takes a packed or an unpacked file. Either way, the result is queued as a VDP DMA from work RAM [MK2, 68000 code at `$028F38`-`$028FCA`].
+- **Into work RAM** (`$00CFF8`, and `$0292F4`, which first moves the packed data out of the way if it overlaps the output). Two of the three callers of `$0292F4` first check for the four bytes `RNC`, 1, so the same call takes a packed or an unpacked file. Either way, the result is queued as a VDP DMA from work RAM [MK2, 68000 code at `$028F38`-`$028FCA`].
 - **Straight to VRAM** (`$00D186`). The caller sets a VRAM write address, and the routine keeps the last 32 KB of its output in a ring buffer at `$FF0000` as its window. Each time a word is complete, it writes that word to the VDP data port. A file can be any length; only the window needs RAM.
 
-The VRAM routine handles the largest files. Ten loaders, reached through a table of ten pointers at `$008E5E` indexed by the word at `$FFAAC0`, each stream one file of 33 to 47 KB to VRAM and unpack a second file of 9 to 14 KB into work RAM [MK2, 68000 code at `$008E52`-`$008E5C`, `$008E86`, `$0096DC`-`$009704`]. These are presumably the arenas, which the Mega Drive draws ([Using both video chips at once](../patterns/layering.md#what-the-shipped-games-put-where)). Unpacked at `$FF0000`, a 47 KB file would run past `$FF8818`, where the game keeps variables. The ring buffer is what lets it be unpacked at all.
+The VRAM routine handles the largest files. Ten loaders, reached through a table of ten pointers at `$008E5E` indexed by the word at `$FFAAC0`, each stream one file of 33 to 46 KB to VRAM and unpack a second file of 9 to 14 KB into work RAM [MK2, 68000 code at `$008E52`-`$008E5C`, `$008E86`, `$0096DC`-`$009704`]. These are presumably the arenas, which the Mega Drive draws ([Using both video chips at once](../patterns/layering.md#what-the-shipped-games-put-where)). Unpacked at `$FF0000`, a 46 KB file would run past `$FF8818`, where the game keeps variables. The ring buffer is what lets it be unpacked at all.
 
-So Mortal Kombat II splits its packed data by the CPU that uses it: method 2 for what the SH-2 draws, method 1 for the Mega Drive's tiles. A Mega Drive game ported to the 32X can keep its 68000 unpacker for Mega Drive graphics in the same way.
+So Mortal Kombat II splits its packed data by the CPU that uses it: method 2 for what the SH-2 draws, method 1 for the Mega Drive's tiles. The code shows why each file is unpacked where it is. Each CPU unpacks the data that ends up in memory it can reach: the SH-2 cannot write VRAM or the 68000's work RAM, and the 68000 cannot reach SDRAM. The code does not show why the heavier method, with its Huffman tables, went to the slower CPU. Its largest files are the arenas, each unpacked once as a fight is set up, where a few frames of decoding are affordable. A Mega Drive game ported to the 32X can keep its 68000 unpacker for Mega Drive graphics in the same way.
 
 ### d32xr's LZSS: byte-aligned and resumable
 
@@ -100,10 +102,10 @@ How d32xr uses it:
 
 A decoder spends much of its time pulling single bits out of a byte. The two CPUs do this differently:
 
-- **68000.** Add a register to itself (`ADD.B D0,D0`) and the top bit lands in the carry and X flags, ready for `BCS` or `ADDX`. Shifts by more than one bit are slow: 6 + 2*n* clocks for *n* places [M68K-UM §8.6]. Koei avoids shifting a bit at a time by comparing the whole 16-bit window against thresholds and removing a whole code at once.
+- **68000.** Add a register to itself and the top bit lands in the carry and X flags, ready for `BCC`/`BCS` or `ADDX`. Shipped code uses this for flag bits: Knuckles' Chaotix counts the set bits of a flag byte with `ADD.B D0,D0` and `BCC` [CHAOTIX, 68000 code at `$004E1C`-`$004E2E`]. Neither 68000 decoder in this chapter takes its codes out that way, though. Koei tests the flag with `BTST #7`, and finds each length and distance by comparing the whole 16-bit window against thresholds, then removes the whole code at once. Mortal Kombat II's method-1 unpacker shifts a whole code off its bit buffer with `LSR.L` by a register count [MK2, 68000 code at `$00D0AA`, `$00D0C8`]. Both avoid a loop per bit, because a shift by *n* places costs 6 + 2*n* clocks, 8 + 2*n* for a long [M68K-UM §8.6], so one long shift is cheaper than a loop of single-bit steps.
 - **SH-2.** `SHLL` moves the top bit into T. `BT`/`BF` branch on it, and `ROTCL` adds it to a value being built up. Mortal Kombat II keeps the current byte in the top 8 bits of a register, so a 32-bit shift brings out its top bit, and a counter says when to load the next byte. The refill, four instructions, is written out in full at each of the twenty-odd places a bit is read, not called. That makes the routine longer and saves a call and a return for each bit [MK2, SH-2 code at `0x06002DF4`].
 
-On both CPUs the decoder's own working values belong in registers. Koei's 68000 decoder keeps its control byte and bit window in RAM and re-reads them for every item, one reason it costs about 285 clocks per output byte ([Finding the idle processor](../patterns/cpu-split.md#finding-the-idle-processor)).
+On both CPUs the decoder's own working values belong in registers. Koei's 68000 decoder is compiled C, and it has the compiler's marks ([Naming and annotating](../howto/reverse-engineering.md#naming-and-annotating)). It reads its arguments from the stack, and it pushes an argument with `pea` and pops it after each call to the bit reader. It widens word counters to longs with `moveq #0` and `move.w` before comparing them. And it keeps its control byte and bit window in RAM variables that it re-reads for every item [AB-DISASM, EarlyInit.asm `$003FEC`-`$00423F`, helper at `$003F72`]. Compiled code that keeps its state in RAM explains the cost, about 285 clocks per output byte ([Finding the idle processor](../patterns/cpu-split.md#finding-the-idle-processor)).
 
 ## Moving decompression to an SH-2
 
@@ -115,11 +117,34 @@ Aerobiz Ultimate moves Koei's decompressor from the 68000 to the Master SH-2. It
 - **Back on the 68000**, the thunk clears FM, copies the result from the frame buffer into the caller's buffer, and returns as the original routine did. The game's own DMA takes it on to VRAM as before.
 - **Fallback.** If the SH-2 has not answered after 400,000 polls, the thunk gives back the frame buffer and runs the original 68000 code ([Never wait forever](../32x/communication.md#never-wait-forever)).
 
-Two rules decided where the output goes. A byte write of 0 to the frame buffer is ignored, so LZ output cannot be written there a byte at a time; and reading back-references from the frame buffer would cost a slow access per byte. So the SH-2 decodes into SDRAM, where both are cheap, and moves the finished block in words ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images)). (d32xr gets round the first rule by clearing the frame buffer before decoding into it, as above, and accepts slow reads during level setup.)
+**Why the frame buffer.** It is the only large block of memory both CPUs can reach. The 68000 cannot see SDRAM at all, and the SH-2 cannot reach the 68000's work RAM. The communication ports hold only 16 bytes. The CPUs always reach the back buffer, the one not being displayed ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). The thunk uses it from offset `$012000`. That is past the 512-byte line table and the 224 lines it points at, so the data would not show as a picture even with the layer on. In the shipping build the 32X layer is blanked anyway [AU-NOTES, ROADMAP.md U-046; disasm/modules/shared/definitions_32x.asm `MARS_LZ_FB_OFFSET`].
 
-The SH-2 version is plain C, a line-by-line translation of the 68000 routine, with byte copies and no unrolling. It still runs at about 60 SH-2 clocks per output byte, against about 285 68000 clocks, and finishes 14 times sooner in real time <span class="tag emulator">emulator</span>. Its output matches the 68000's exactly: a checksum over the 22,528-byte world map agrees with the reference decoder's, and screens captured from both builds are identical <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-046, HISTORY.md]. The cache does most of the work: the decoder's loop and the input both stay in it.
+Two rules decided why the SH-2 does not decode straight into it. A byte write of 0 to the frame buffer is ignored, so LZ output cannot be written there a byte at a time; and reading back-references from the frame buffer would cost a slow access per byte. So the SH-2 decodes into SDRAM, where both are cheap, and moves the finished block in words ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images)). (d32xr gets round the first rule by clearing the frame buffer before decoding into it, as above, and accepts slow reads during level setup.)
 
-While the 68000 has RV set for a DMA from the cartridge, an SH-2 that reads the cartridge is stalled until RV clears ([The RV bit](../32x/architecture.md#the-rv-bit)). Aerobiz Ultimate's design rules that out. The thunk masks all 68000 interrupts and polls until the SH-2 answers, so neither the game nor its interrupt handlers can start a DMA during a job [AU-NOTES, disasm/32x/sh2_lz.asm]. The price is that vertical interrupts wait for the whole job, about 4.4 frames for the largest block in PicoDrive <span class="tag emulator">emulator</span>. The thunk turns them back on before its copy, and screen loads happen behind a fade anyway. The cartridge is still shared. The thunk's poll loop runs from the cartridge, so the 68000's instruction fetches compete with the SH-2's cache line fills, at a cost nobody has measured on a console.
+The SH-2 version is plain C, a line-by-line translation of the 68000 routine, with byte copies and no unrolling. Its output matches the 68000's exactly: a checksum over the 22,528-byte world map agrees with the reference decoder's, and screens captured from both builds are identical <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-046, HISTORY.md].
+
+How fast it is depends on what is counted. Stock PicoDrive models no SH-2 cache and no memory waits, so its SH-2 timings are instruction counts. The project measured on its own build of PicoDrive, which adds a cache and wait-state model checked against the manuals, not against a console [AU-NOTES, ROADMAP.md U-093]:
+
+| | 68000 | SH-2 | Ratio |
+|---|---|---|---|
+| Decoding only, clocks per output byte | 285.5 at 7.67 MHz | 59.7-60.7 at 23.01 MHz | 4.7-4.8 times fewer clocks, at three times the clock rate |
+| Decoding only, largest block (27,872 bytes) | 62.2 frames | 4.4 frames | 14 times sooner |
+| End to end, largest block | 62.2 frames | about 7.5 frames | about 8 times sooner |
+
+The decode-only figures are measured <span class="tag emulator">emulator</span>. In the model, 99.99% of the decoder's accesses hit the cache. With the model turned off, PicoDrive gives the SH-2 ideal memory with no waits at all, which is not the same as a console without a cache, and the decoder is about 10% faster than with it [AU-NOTES, ROADMAP.md U-046]. So in the model the cache brings the decoder within about 10% of ideal memory. That holds as far as the model can tell. It leaves out the cartridge bus the SH-2 shares with the 68000 (below).
+
+The end-to-end figure adds the two copies, estimated from instruction timings, not measured:
+
+- **The SH-2 copies SDRAM to the frame buffer.** The compiled loop is ten instructions a word: two byte loads, a shift and an OR, and a word store through the cache-through address. That is about 11-13 clocks a word, half a frame for the largest block [AU-NOTES, build/sh2/master/lz.o `sh2_lz_job`]. One word load would replace the two byte loads, the shift and the OR. The SDRAM buffer is a plain `unsigned char` array, which C only promises byte alignment for. It happens to start on a 4-byte boundary in the current build, so declaring it aligned and reading it through a matching type would make the cheaper loop safe.
+- **The 68000 copies the frame buffer to the caller's buffer.** Each word costs `MOVE.W (A1)+,(A0)+` (12 clocks), 2 to 4 wait states on the frame buffer read, and `DBRA` (10): 24-26 clocks. For the largest block's 13,936 words that is 2.6-2.8 frames [M68K-UM §8; 32X-HWM §4.4].
+
+The game-level measurement agrees with the end-to-end figure rather than the decode-only one. Over 12,000 frames the patched build ran 198 frames ahead of the original. These are emulator frames, not the game's own frame count, which loses about four frames in each job: the project's harness hashes VRAM and CRAM once per emulated frame and pairs the frames on which both builds show the same screen [AU-NOTES, ROADMAP.md U-092]. That is about 66 frames saved at each of the three quarter-boundary stalls of 74-76 frames, so 8-10 frames are left of each <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-046]. The 68000's copy is now the biggest single part of a hand-over. A 68000 DMA from the frame buffer straight to VRAM would remove it, but that path is untested.
+
+While the 68000 has RV set for a DMA from the cartridge, an SH-2 that reads the cartridge is stalled until RV clears ([The RV bit](../32x/architecture.md#the-rv-bit)). Aerobiz Ultimate's design rules that out. The thunk masks all 68000 interrupts and polls until the SH-2 answers, so neither the game nor its interrupt handlers can start a DMA during a job [AU-NOTES, disasm/32x/sh2_lz.asm]. The price is that the 68000's interrupts wait for the whole job: the SH-2's decode and its copy, about 5 frames for the largest block. The thunk turns them back on before its own copy, and screen loads happen behind a fade anyway. The vertical interrupts that arrive meanwhile are not queued. The 68000 takes one when its mask drops, so the game's frame count runs about four frames short.
+
+**The music keeps playing.** Aerobiz's music runs entirely on the Z80, whose driver sets interrupt mode 1 and keeps time from its own interrupt at `$38` [AB-DISASM, Z80 driver copied from cartridge `$2696`: `im 1` and `ei` at Z80 `$00E0`, handler at `$096B`]. The VDP raises that interrupt whatever the 68000's mask is ([Interrupts on the Z80 side](../megadrive/z80.md#interrupts-on-the-z80-side)). The thunk never takes the Z80's bus, so the driver runs through a job undisturbed. Aerobiz Ultimate still plays through this driver; its PWM audio is not written yet [AU-NOTES, ROADMAP.md M6]. What a job does delay is any new sound command: the 68000 sends those through sound RAM, and it does nothing but poll until the job ends.
+
+**The cartridge is still shared.** The thunk's poll loop runs from the cartridge, so the 68000's instruction fetches compete with the SH-2's cache line fills, at a cost nobody has measured on a console. Copying the six-instruction loop to work RAM would remove those fetches. The communication port it reads is a 32X register, not cartridge memory. The Mars Check Program copies its RV test to work RAM for a related reason ([Worked example: one test, both CPUs](../howto/reverse-engineering.md#worked-example-one-test-both-cpus)). Aerobiz Ultimate keeps one routine in work RAM already: its DMA stub, which RV forces out of the cartridge. It puts that stub below the stack, the only work RAM the project found reliably free, since the game overwrites areas a static scan had marked unused [AU-NOTES, PORT_ARCHITECTURE.md; HARDWARE_TESTS.md]. The LZ thunk does not touch RV, so nothing forces it there, and the contention has not been measured to say it is worth the RAM.
 
 ## Run-length sprites
 
@@ -157,20 +182,20 @@ How good is the format? The shape table at cartridge `$173900` has 767 entries p
 | LZSS in d32xr's byte-aligned format, 4 KB window, greedy matching | 313,553 | 19.9% |
 | Deflate (LZ plus Huffman codes), for comparison | 153,349 | 9.7% |
 
-LZSS would save 127 KB, 29% of the sprite data. The format does not change how often the cache misses, since the cache holds decoded shapes. It changes what each miss costs. LZSS would read 29% fewer bytes from the cartridge, the slow part of a miss. But it would rebuild every zero run by copying bytes from its own output, where the run-length decoder stores zeros from a register, eight to a loop pass. With three quarters of the output in zero runs, that matters. The game spends about 2% of the Master's time in its sprite cache in PicoDrive <span class="tag emulator">emulator</span>, so either way the stakes are small ([Memory](memory.md#a-cache-of-decoded-sprites)). Deflate's tables would cost far more per miss.
+LZSS would save 125 KB (127,595 bytes), 29% of the sprite data. The format does not change how often the cache misses, since the cache holds decoded shapes. It changes what each miss costs. LZSS would read 29% fewer bytes from the cartridge, the slow part of a miss. But it would rebuild every zero run by copying bytes from its own output, where the run-length decoder stores zeros from a register, eight to a loop pass. With three quarters of the output in zero runs, that matters. The game spends about 2% of the Master's time in its sprite cache in PicoDrive <span class="tag emulator">emulator</span>, so either way the stakes are small ([Memory](memory.md#a-cache-of-decoded-sprites)). Deflate's tables would cost far more per miss.
 
 ## Sound: a fixed cost per sample
 
 Sound data is decoded in the PWM interrupt, one sample at a time, and must never fall behind. Both retail formats in the sources have a fixed cost per sample and a fixed ratio. See [PWM sound](../32x/pwm.md#1-the-pwm-interrupt-star-wars-arcade) for the drivers:
 
-- **Mortal Kombat II** packs 6-bit samples four to three bytes, and plays each one twice. A second of sound at 22 kHz takes about 8.1 KB [MK2, SH-2 code at `0x0600509C`].
+- **Mortal Kombat II** packs 6-bit samples four to three bytes, and plays each one twice. A second of sound at 22 kHz takes about 8.1 KB. The decoder runs on the Slave: its interrupt dispatcher, a table at `0x06004E64` indexed by interrupt level, sends level 6, the PWM interrupt, to the handler at `0x06004F4C` [MK2, SH-2 code at `0x06004E24`, `0x06004F4C`, `0x0600509C`].
 - **Star Wars Arcade** uses a codebook: each data byte picks a short block of samples from a 256-entry table, and each sample is played twice. With 4-sample blocks that is one byte per 8 output samples. Its second decoder starts a new table, stored in the data, every so many bytes [SWA, SH-2 code at `0x0600095C`-`0x06000AAE`].
 
 Both halve the rate by playing every sample twice. That is the cheapest compression there is, and it costs the top half of the frequency range.
 
 ## Choosing a format
 
-- **Match the format to the decoding CPU.** Bit-packed codes such as Koei's and ProPack's pack tighter, and need cheap single-bit operations. The SH-2 has them (`SHLL`, `ROTCL`, T). The 68000 has them only for one bit at a time. Byte-aligned formats such as d32xr's waste a few bits and decode quickly on either CPU.
+- **Match the format to when it is decoded.** Bit-packed codes such as Koei's and ProPack's pack tighter, and cost more to decode: both CPUs take bits out one at a time, the 68000 with `ADD` and the carry, the SH-2 with `SHLL` and T. An SH-2 is fast enough for any of these formats. On the 68000 a bit-packed format is affordable when the data is decoded once, at load time, as both Koei's screens and Mortal Kombat II's arenas are. Byte-aligned formats such as d32xr's waste a few bits and decode quickly on either CPU, so they suit data decoded while the game runs.
 - **Decompress where the data will be used, into memory that is cheap to read back.** LZ reads its own output. Decode into RAM or SDRAM, then copy the result in words to VRAM or the frame buffer. Decoding straight into VRAM saves RAM and costs about four port accesses per byte. Decoding straight into the frame buffer works only if the area is cleared first, and reads its back-references slowly.
 - **The window sets the memory, not the output.** A resumable decoder with a 4 KB ring can take any size of picture or stream through 4 KB.
 - **Sprites drawn often** should be either drawn directly from a run-length format or decoded once into a cache.
@@ -179,27 +204,32 @@ Both halve the rate by playing every sample twice. That is the cheapest compress
 
 ## In emulators
 
-PicoDrive does not stall an SH-2 that reads the cartridge while RV is set, and it does not charge for the cartridge bus being shared between the SH-2s and the 68000 ([The RV bit](../32x/architecture.md#the-rv-bit), [Two SH-2s, one bus](../sh2/bsc.md#two-sh-2s-one-bus)). An SH-2 decompressor reading the cartridge will be slower on a console than the emulator's figures, by an amount nobody has measured.
+PicoDrive does not stall an SH-2 that reads the cartridge while RV is set, and it does not charge for the cartridge bus being shared between the SH-2s and the 68000 ([The RV bit](../32x/architecture.md#the-rv-bit), [Two SH-2s, one bus](../sh2/bsc.md#two-sh-2s-one-bus)). Stock PicoDrive models no SH-2 cache and no memory wait states either, so its SH-2 timings are instruction counts; Aerobiz Ultimate's figures come from its own build, which adds both ([Moving decompression to an SH-2](#moving-decompression-to-an-sh-2)). An SH-2 decompressor reading the cartridge will be slower on a console than either build's figures, by an amount nobody has measured.
 
 ## What to take away
 
 - LZ for general data, run-length coding for sprites, fixed-rate packing for sound.
-- Choose bit-packed formats for the SH-2 and byte-aligned ones where the 68000 decodes.
+- Bit-packed formats suit an SH-2, and the 68000 when the data is decoded once at load time. Byte-aligned formats suit anything decoded while the game runs.
 - Decode into RAM or SDRAM and copy out in words. Decode into VRAM only to save RAM, and into the frame buffer only after clearing it.
 - A resumable decoder needs only its window, however large the output.
 - On the 32X, move decompression to an SH-2: it is one of the few jobs that is both heavy and easy to hand over.
 
 ## Open questions
 
-- How much does Aerobiz Ultimate's SH-2 decompressor slow down on a console while the 68000 polls from the cartridge?
+- How much does Aerobiz Ultimate's SH-2 decompressor slow down on a console while the 68000 polls from the cartridge, and would copying the poll loop to work RAM recover it?
+- Can the 68000's VDP DMA read the 32X frame buffer at `$840000`? If so, Aerobiz Ultimate could send decompressed tiles to VRAM without its 2.6-2.8-frame copy.
+- Why does Mortal Kombat II give method 1, the format with Huffman codes, to the 68000 and method 2 to the SH-2? Each CPU unpacks what lands in memory it can reach, but the code does not show why the methods went the way they did. The Mega Drive version of the game would settle it: if it holds the same `RNC`, 1 files and the same unpackers at `$00CFF8`, `$00D186` and `$0292F4`, the method-1 data came over from that version, and method 2 was chosen only for the new SH-2 side. That cartridge is not among the book's ROMs.
 - Which effect uses After Burner Complete's 4-bit variant? It did not appear in 3,900 frames of the first stage.
 - What would LZSS cost After Burner Complete per cache miss, with fewer cartridge bytes to read but zero runs to copy?
 
 ## Sources
 
-- [AB-DISASM](../appendices/bibliography.md#ab-disasm): disasm/modules/68k/boot/EarlyInit.asm, game/DecompressVDPTiles.asm, vdp/VRAMWriteExtended.asm, vdp/VRAMWriteWithMode.asm, sound/ClearSoundBuffer.asm, GameSetup1.asm
-- [AU-NOTES](../appendices/bibliography.md#au-notes): tools/lz_decompress.py, disasm/sh2/master/lz.c, disasm/32x/sh2_lz.asm (the thunk), ROADMAP.md U-046, HISTORY.md
-- [MK2](../appendices/bibliography.md#mk2): SH-2 code at `0x06002DF4`, `0x060027F0`-`0x06002994`, `0x0600509C`; 68000 code at `$00CFF8`, `$00D186`, `$0292F4`, `$028F38`-`$028FCA`, `$008E86`, `$0096DC`-`$009704`; ROM scan for ProPack headers
+- [AB-DISASM](../appendices/bibliography.md#ab-disasm): disasm/modules/68k/boot/EarlyInit.asm (`LZ_Decompress`, helper at `$003F72`), game/DecompressVDPTiles.asm, vdp/VRAMWriteExtended.asm, vdp/VRAMWriteWithMode.asm, sound/ClearSoundBuffer.asm, GameSetup1.asm; Z80 driver at cartridge `$2696` (Z80 `$00E0`, `$0038`, `$096B`)
+- [AU-NOTES](../appendices/bibliography.md#au-notes): tools/lz_decompress.py, disasm/sh2/master/lz.c, build/sh2/master/lz.o and sh2.elf (`lz_out` at `0x0602E674`), disasm/32x/sh2_lz.asm (the thunk), disasm/modules/shared/definitions_32x.asm, ROADMAP.md U-046, U-092, U-093 and M6, PORT_ARCHITECTURE.md, HARDWARE_TESTS.md, HISTORY.md
+- [MK2](../appendices/bibliography.md#mk2): SH-2 code at `0x06002DF4`-`0x06002F84`, `0x060027F0`-`0x06002994`, `0x06004E24` (Slave dispatcher, table at `0x06004E64`), `0x06004F4C`, `0x0600509C`; 68000 code at `$00CFF8`, `$00D0AA`, `$00D0C8`, `$00D186`, `$0292F4`, `$028F38`-`$028FCA`, `$008E86`, `$0096DC`-`$009704`; ROM scan for ProPack headers, and all 80 ProPack files decoded and checked against their headers' sizes and CRCs
+- [M68K-UM](../appendices/bibliography.md#m68k-um): §8 instruction timings (§8.6 for shifts)
+- [CHAOTIX](../appendices/bibliography.md#chaotix): 68000 code at `$004E1C`-`$004E2E`
+- [32X-HWM](../appendices/bibliography.md#32x-hwm): §4.4, 68000 access to the frame buffer
 - [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x060065BC`-`0x0600676A`; shape table at `$173900`, RLE data at `$061000`, palette at `$173700`; draw lists read in PicoDrive
 - [SWA](../appendices/bibliography.md#swa): SH-2 code at `0x0600095C`-`0x06000AAE`
 - [D32XR](../appendices/bibliography.md#d32xr): liblzss/lzss.c, liblzss/lzss.h, w_wad.c, marsnew.c, marsdraw.c, src-md/vgm.c

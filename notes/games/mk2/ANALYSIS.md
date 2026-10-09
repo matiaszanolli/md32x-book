@@ -138,3 +138,14 @@ Main loop `0x0600051A`: wait for the frame counter, flip FS, then call a handler
 - Master: byte `$80` to `0x20004000` (FM), then byte `$0A` (V, CMD) to `0x20004001` at `0x060002B6`. Slave: PWM set-up (cycle `$413`, control `$0105`), then byte `$01` (PWM) at `0x0600516C`. No H interrupt.
 - VRES handler (`0x06000350`): clears VRES, then `mov.b @(6,gbr),r0` / `tst #1` reads bit 8 of `0x20004006`, not RV; same slip as After Burner Complete. Book: `src/32x/registers.md`, discrepancy 33.
 - No 68000 write sets RV and no reference to `$A130xx` (32 Mbit cartridge, so TI item 8's `$A130F1` initialisation is skipped). Book: `src/32x/bugs.md`.
+
+## ProPack check (9 October 2026)
+
+`rnc_check.py ROM` decodes every `RNC` file in a ROM and checks it against its
+header. Method 2 follows the SH-2 unpacker at `0x06002DF4`-`0x06002F84` (402
+bytes; literal blocks are (4-bit count + 3) × 4 bytes, copied two bytes per pass
+over (count + 3) × 2 passes). Method 1 is the standard Huffman variant. On MK2 all
+47 method-2 files (1,139,686 bytes unpacked, 405,109 packed) and all 33 method-1
+files (566,412 unpacked, 272,981 packed) come out at the header's size with a
+matching CRC-16. One `RNC\x01` hit at a false offset has impossible sizes and is
+skipped.
