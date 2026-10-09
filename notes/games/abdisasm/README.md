@@ -1,0 +1,9 @@
+# Aerobiz Supersonic (AB-DISASM): compiled or hand-written (8 October 2026)
+
+Working notes, not part of the book. `compiled.py ../aerobiz-disasm [--list]` reads the 801 function modules included by `disasm/sections/section_0[0-3]*.asm`, sizes each from its start to the next function's start (so embedded tables and the Z80 program after `Z80_Delay` count as code), and marks a function compiled if it has a `link`, reads `$n(sp)`/`$n(a6)` arguments, or pops the stack with `addq`/`lea`/`adda` on SP. `--list` prints the rest with their counters.
+
+Results: 450 compiled-looking functions, 194,358 bytes; 351 others, 66,856 bytes (104 of them widen with `ext.l`/`andi.l #$ff` and are probably compiled functions without stack arguments; 21 touch hardware directly; 1 `rte`). `link a6` in 276 functions. Decompressors (`DecompressVDPTiles`, `DecompressGraphicsData`, `DecompressTilePair`, `UnpackPixelData`, `UnpackEventRecord`) are compiled.
+
+Support routines (calls counted in the ROM, MD5 `1269f44e…`, `jsr abs.l`, `jsr d16(pc)`, `bsr`): Multiply32 `$03E05C` 204, SignedDiv `$03E08A` 169, SignedMod `$03E146` 88, UnsignedDivide `$03E0C6` 46 (44 from outside the block; the other two from SignedDiv at `$03E0B6` and UnsignedMod at `$03E13C`), UnsignedMod `$03E12A` 1; the `_FromPtr` entries have no direct callers. Also MemFillByte `$01D520` 71, MemCopy `$01D538` 23, RandRange `$01D6A4` 64, MulDiv `$01E11C` 13. Block ends at `$03E181` (string data follows).
+
+Interpreter search: no function fetches with `move.b/w (an)+` and dispatches through a table within 8 instructions, except `ShowCharPortrait`, whose `jsr (a5)` goes to the fixed `$3FEC`. `GameCommand` (`$000D64`) is a 47-entry service table called once per call. `Vsprintf`/`PrintfDirect` parse printf formats. Switch pattern: `ext.l`, range compare, `add.l d0,d0`, `move.w 6(pc,d0.l),d0`, `jmp 2(pc,d0.w)`, word offsets. No compiler or maker string in the ROM (`strings`: only the header's "(C)T-76 1994.DEC").
