@@ -33,7 +33,7 @@ Integer maths gives the same answer on every machine. The homebrew notes use no 
 
 ## Multiplying
 
-**On the SH-2**, a 16.16 multiply is four instructions: `DMULS.L`, two `STS` and an `XTRCT` ([Multiplies](../sh2/isa.md#multiplies)). In C, write it as a 64-bit product shifted right by 16. sh-elf-gcc 13.2 compiles that to the same four instructions, so d32xr uses the C form and leaves its hand-written assembler version unused [D32XR, doomdef.h, sh2_fixed.s]. A chain of three such factors also compiles inline with 13.2. The homebrew notes report that GCC 12.1 miscompiles some chains of 64-bit multiplies, and advise writing them with `DMULS.L` or `MAC` directly on that compiler [S32X-SKILL, references/toolchain-and-build.md].
+**On the SH-2**, a 16.16 multiply is four instructions: `DMULS.L`, two `STS` and an `XTRCT` ([Multiplies](../sh2/isa.md#multiplies)). In C, write it as a 64-bit product shifted right by 16. sh-elf-gcc 13.2 compiles that to the same four instructions (15.1 and 16.2 take six, with `SHLL16`, `SHLR16` and `ADD` instead of `XTRCT`), so d32xr uses the C form and leaves its hand-written assembler version unused [D32XR, doomdef.h, sh2_fixed.s]. A chain of three such factors also compiles inline with 13.2. The homebrew notes report that GCC 12.1 miscompiles some chains of 64-bit multiplies, and advise writing them with `DMULS.L` or `MAC` directly on that compiler [S32X-SKILL, references/toolchain-and-build.md].
 
 When both values fit in 16 bits, `MULS.W` is cheaper: a 16 × 16 → 32 product into MACL. Star Wars Arcade and After Burner Complete use it for edge slopes and projection ([Software 3D](software-3d.md)).
 
