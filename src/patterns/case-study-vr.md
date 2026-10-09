@@ -56,7 +56,7 @@ The project's own warning about these numbers is the right one: a vertical inter
 | B-004 | Block copies went from three waits to two: the Master clears one flag as soon as it has read the parameters, and another when the copy is done. The next command's first wait doubles as the completion check | About 1,400 cycles saved per picture |
 | B-005 | Make block copies fire-and-forget too | Blocked: the same port flag is also how the game keeps the CPUs in step from one picture to the next, so removing the wait breaks it |
 | B-006 | Move vertex transforms to the Slave | Reverted: its new commands collided with words the game already used in the ports |
-| S-6 | Inline the Slave's coordinate transform at its four call sites, in new code at the top of the cartridge | The routine fell from 17% to 12% of the Slave's time |
+| S-6 | Inline the Slave's coordinate transform at its four call sites, in new code at the top of the cartridge | Estimated at 19,200 clocks a picture, about 5% of the Slave's time. Not measured: the 12% share the notes give afterwards is the earlier 17% less the estimate ([Pipeline and cycle counting](../sh2/pipeline.md#other-patterns-in-real-code)) |
 
 Sources: [VRD-NOTES, master branch, analysis/SYSTEM_EXECUTION_FLOW.md §3, §6; SLAVE_SH2_DISPATCH_ARCHITECTURE.md §5] <span class="tag emulator">emulator</span>.
 
