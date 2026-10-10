@@ -56,3 +56,12 @@ Evidence and licence notes are per entry. Describe in the book's own words; neve
 - 4-bit textures (sh2_draw4b.s, sh2_drawlow4b.s): two texels per byte; `shlr` halves the index and leaves the nibble select in T. Comment sh2_draw4b.s:61-63: nibbles pre-swapped in the data to save address maths. Per-texture 16-colour x 33-level x 2-byte colormap at the end of the lump (r_main.c:434-436). Expanded to 8-bit when copied to the SDRAM texture cache (r_phase9.c:218-241).
 - MIPLEVELS defaults to 1 (r_local.h:151-152).
 
+
+## Verification note: where d32xr's column loop sits (9 October 2026)
+
+The book states the result only: at commit `957d3a8`, `do_col_loop` ends up at 16n + 10. Why that does not depend on the rest of the build:
+
+- `sh2_draw.s` puts its code in `.sdata` with `.align 4` (16 bytes; `sh-elf-objdump -h` on the object shows `2**4`). Assembled with GNU as 2.47, `do_col_loop` is at offset `0x3A` (`sh-elf-nm`).
+- A linker places each input section on its own alignment, so the offset mod 16 survives any link order. `--sort-section=alignment` in the Makefile reorders sections, it does not misalign them. `mars-ssf.ld` puts `.sdata` in `.data`, with VMA `0x06000000` (SDRAM).
+- The Makefile expects an older toolchain (`/opt/toolchains/sega`, GCC 4.6.2 libraries). The assembler version cannot move the label: SH-2 instructions are all 2 bytes, there is no relaxation, the only padding before the label is `.p2alignw 1` (2-byte alignment, a no-op here), and the one literal the routine loads (`draw_width`) is at the end of the file (offset `0x1B4`).
+- Not done: a full build of the game. Nothing in `sh2_draw.s` changed between `957d3a8` and `55bf94b` (5 October 2026).

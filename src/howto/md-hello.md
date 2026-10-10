@@ -77,7 +77,7 @@ The Z80 is left alone. It is held in reset at power-on, so it runs nothing until
 
 **The palette** needs two colours. CRAM word 0 is the backdrop, which register 7 selects; word 1 is the text. A Mega Drive colour holds 3 bits each of blue, green and red, at bits 11-9, 7-5 and 3-1: `$0600` is a dark blue and `$0EEE` white ([Colour RAM](../megadrive/vdp-color.md#colour-ram)).
 
-**The font** is stored at 1 bit per pixel, eight bytes per character, in [`font.inc`](md-hello/font.inc). The loader and the printing routines below are in [`text.inc`](md-hello/text.inc), which the [pipeline test](../sh2/pipeline.md#a-console-test) uses too. Its 25 characters cover only what the program prints. Tiles are 4 bits per pixel, so the loader expands each byte into a longword: for each of the eight bits, shift the result left by four and add 1 if the bit is set. One longword is one row of a tile, and eight rows make the 32-byte tile ([Tiles](../megadrive/vdp-planes.md#tiles)). Character *n* becomes tile *n*, so the space, character 0, is tile 0, and the cleared name table already shows spaces everywhere.
+**The font** is stored at 1 bit per pixel, eight bytes per character, in [`font.inc`](md-hello/font.inc). The loader and the printing routines below are in [`text.inc`](md-hello/text.inc), which the [pipeline test](../sh2/pipeline.md#a-console-test) uses too. Its 27 characters cover only what this program and the pipeline test print. Tiles are 4 bits per pixel, so the loader expands each byte into a longword: for each of the eight bits, shift the result left by four and add 1 if the bit is set. One longword is one row of a tile, and eight rows make the 32-byte tile ([Tiles](../megadrive/vdp-planes.md#tiles)). Character *n* becomes tile *n*, so the space, character 0, is tile 0, and the cleared name table already shows spaces everywhere.
 
 Expanding at load time keeps the font at a quarter of its size in ROM. Aerobiz Supersonic does the same with a different trick: a mask register holding a single 1 nibble is rotated four bits per pixel and ORed in where a bit is set. After eight pixels the mask is back where it started, so it never has to be reloaded [AB-DISASM, EarlyInit.asm at `$003C4A`].
 
@@ -103,7 +103,7 @@ With both lines printed, the program turns the display on and enables the vertic
 {{#include md-hello/hello.s:loop}}
 ```
 
-The interrupt handler only adds one to a counter in work RAM. The main loop waits for the counter to change, which happens at the start of each vertical blank, and then writes the four hex digits of the count. Its VRAM writes therefore land early in vertical blank, when the CPU has the VDP's full bandwidth ([Organising the frame](../megadrive/vdp-timing.md#organising-the-frame)). The digits need no search: `0` to `9` are glyphs 3 to 12, and `A` to `F` follow at 13 to 18.
+The interrupt handler only adds one to a counter in work RAM. The main loop waits for the counter to change, which happens at the start of each vertical blank, and then writes the four hex digits of the count with `put_hex`, from the printing routines above. Its VRAM writes therefore land early in vertical blank, when the CPU has the VDP's full bandwidth ([Organising the frame](../megadrive/vdp-timing.md#organising-the-frame)). `put_hex` needs no search: `0` to `9` are glyphs 3 to 12, and `A` to `F` follow at 13 to 18.
 
 Keeping the handler this small is the usual pattern. The interrupt marks time, and the main program decides what to do with it.
 

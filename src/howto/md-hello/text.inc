@@ -56,4 +56,15 @@ print:
 14:     move.w  d3, (a1)                | name table entry: palette 0, tile d3
         bra.s   11b
 13:     rts
+
+| Write the low word of d5 as four hex digits at the cursor.
+put_hex:
+        moveq   #4-1, d3                | four hex digits, high first
+15:     rol.w   #4, d5
+        move.w  d5, d2
+        andi.w  #0x000F, d2
+        addq.w  #3, d2                  | "0" is glyph 3, and "A"-"F" follow "9"
+        move.w  d2, (a1)
+        dbra    d3, 15b
+        rts
 | ANCHOR_END: helpers

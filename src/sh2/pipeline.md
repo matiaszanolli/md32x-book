@@ -35,10 +35,10 @@ A free `if` does not split the slot [SH-PM §7.4.3 p.174]. The MA of the instruc
 - **A load or store at an address that is a multiple of 4 costs nothing extra.** Its MA meets the free `if` of an instruction at 4*n* + 2.
 - **A load or store at 4*n* + 2 costs one extra clock.** Its MA meets a real `IF`.
 
-Here is the rule for two loads in a row, the first at 4*n*, then three instructions without a memory access. Columns are slots; the fifth slot splits into two clocks, the load's MA first and then everything else [SH-PM Figure 7.8 p.175]:
+Here is the rule for two loads in a row, the first at 4*n*, then three instructions without a memory access. Columns are clocks from the cache [SH-PM Figure 7.8 p.175]:
 
 ```text
-slot                     1    2    3    4    5a   5b   6    7
+clock                    1    2    3    4    5    6    7    8
 4n     load              IF   ID   EX   MA   WB
 4n+2   load                   if   ID   EX   MA   WB
 4n+4   add                         IF   ID   --   EX
@@ -46,7 +46,7 @@ slot                     1    2    3    4    5a   5b   6    7
 4n+8   add                                   --   IF   ID   EX
 ```
 
-The first load's MA (slot 4) meets the `if` of the instruction at 4*n* + 6, which fetches nothing, so slot 4 takes one clock. The second load's MA (slot 5) meets the `IF` at 4*n* + 8, which fetches the next pair, so slot 5 takes two. Five instructions cost six clocks. Put one of the `add`s between the two loads and both loads sit at multiples of 4: both MAs meet an `if`, and the five instructions cost five clocks.
+Clocks 5 and 6 are the two halves of one split slot: the load's MA first, then everything else. The first load's MA (clock 4) meets the `if` of the instruction at 4*n* + 6, which fetches nothing, so its slot takes one clock. The second load's MA (clock 5) meets the `IF` at 4*n* + 8, which fetches the next pair, so its slot takes two. Five instructions cost six clocks. Put one of the `add`s between the two loads and both loads sit at multiples of 4: both MAs meet an `if`, and the five instructions cost five clocks.
 
 Hitachi states these rules for on-chip memory and the on-chip cache alike, so they apply to code and data that both hit the cache [SH-PM §7.4.2-7.4.3 pp.173-175]. The SH7604 manual has no section of its own on this. It does say that the CPU reaches the cache over a single cache bus, and that the cache answers one read per cycle [SH7604 §7.11.2, §8.4.1], which leaves no room for a fetch and a data access in the same cycle. That fits the programming manual's rule; neither manual gives a timing measured on the SH7604 itself.
 
@@ -85,7 +85,7 @@ Hitachi's table of costs with nothing in the way [SH-PM Table 7.2 pp.177-183; Ap
 | `TRAPA` | 8 |
 | `SLEEP` | 3 |
 
-The ranges in the multiply rows depend on the instructions around them (see [below](#the-multiplier)). Count multiplies from Hitachi's pipeline figures, which this table summarises. For `MAC.W` and `MAC.L` the two disagree: the figures hold the next instruction back one slot, as they do after `DMULS.L`, which makes 2 clocks with nothing else in the way, while the table says 3 ([discrepancy 47](../appendices/discrepancies.md)).
+The ranges in the multiply rows depend on the instructions around them (see [below](#the-multiplier)). Count multiplies from Hitachi's pipeline figures, which this table summarises. The table's ranges cannot be checked pair by pair against the figures. Hitachi counts an instruction's cost from its EX to the next instruction's EX [SH-PM §7.3 p.171], and in the figures the EX of the instruction after a stretched MA starts the stretched slot. So the clocks a multiply loses are charged to the instruction after it, which may not be a multiply at all: in Figure 7.68 (p.233) the `MULS.W` after a `DMULS.L` costs 1 and the next instruction 4 [SH-PM Figures 7.56, 7.66, 7.68 pp.224, 232-233]. That is a matter of bookkeeping, not a second disagreement; the total is the same. For `MAC.W` and `MAC.L` the two disagree: the figures hold the next instruction back one slot, as they do after `DMULS.L`, which makes 2 clocks with nothing else in the way, while the table says 3 ([discrepancy 47](../appendices/discrepancies.md)).
 
 ### Branches
 
@@ -165,7 +165,7 @@ Counting it with the rules above, first with the code, the texels and the light 
 
 That gives 23 clocks per two pixels, 11.5 a pixel <span class="tag manual">manual</span>. Moved by 2 bytes, for example with one `nop` before the loop label that runs once, every memory instruction would land on a multiple of 4. The prediction is then 17 clocks per two pixels, 8.5 a pixel. The alignment saves 3 clocks a pixel, a quarter of the loop.
 
-**Where the loop sits.** At commit `957d3a8` the file puts its code in the `.sdata` section with 16-byte alignment (`.align 4`), and the loop label `do_col_loop` is at offset `0x3A`, as assembled here with GNU as 2.47 [D32XR, sh2_draw.s]. A linker always places an input section on its own alignment, so the label's final address is 16*n* + 10 whatever else is linked. d32xr's linker script puts `.sdata` in the data section, which runs from SDRAM at `0x06000000` through the cache [D32XR, mars-ssf.ld]. The project's Makefile expects an older toolchain (GCC 4.6.2 libraries under `/opt/toolchains/sega`), but the offset does not depend on it: SH-2 instructions are all 2 bytes, the only padding before the label is a `.p2alignw 1`, which aligns to 2 bytes and so adds nothing, and the literal it loads is out of the way at the end of the file. We did not build the whole game; the offset and the section's alignment are what fix the address.
+**Where the loop sits.** At commit `957d3a8` the loop label `do_col_loop` is at offset `0x3A` of a section aligned to 16 bytes, so its final address is 16*n* + 10, in SDRAM through the cache [D32XR, sh2_draw.s, mars-ssf.ld].
 
 **Where the texels come from.** The count above assumes they are in the cache, and a column of wall reads a fresh run of them. d32xr keeps a texture cache in SDRAM. After each picture it copies into it at most one new texture per mip level, from the cartridge, expanding 4-bit textures to 8 bits on the way. An entry can be evicted once three pictures have passed without a wall using it [D32XR, r_phase9.c, r_cache.c, r_local.h]. A wall texture not copied yet is drawn straight from the cartridge: by a 4-bit drawer if the texture has a 4-bit form and no decals, otherwise by the 8-bit drawer, which is `I_DrawColumnA` for textures whose height is a power of two [D32XR, r_phase6.c, r_main.c, doomdef.h]. So `I_DrawColumnA` reads its texels from SDRAM or from the cartridge, through the cache either way. A texture column is a run of bytes, one per texel, so one column of wall touches at most the texture's height ÷ 16 cache lines of texels, one more if the run does not start on a line: 8 or 9 for a texture 128 texels high. Each line costs 12 clocks from SDRAM and 64 to 136 from the cartridge ([What a 16-bit bus costs](bsc.md#what-a-16-bit-bus-costs)). For a column 100 pixels tall that covers the whole texture, in clocks:
 
@@ -175,7 +175,7 @@ That gives 23 clocks per two pixels, 11.5 a pixel <span class="tag manual">manua
 | Plus 8 texel lines from SDRAM | 1,246 | 946 | 300, 24% |
 | Plus 8 texel lines from the cartridge | 1,662 to 2,238 | 1,362 to 1,938 | 300, 13% to 18% |
 
-The 3 clocks a pixel do not depend on the misses; the share they make does. A frame at 23.01 MHz is about 384,000 clocks. A picture that drew 20,000 wall pixels would save 60,000 of them, about a sixth of a frame, whatever the texels cost. This is a prediction from Hitachi's rules alone. It has not been measured, and the emulators cannot show it (see below).
+The rows leave out one more cost: a line fill needs the bus, so it waits for a frame-buffer write still in the write buffer. The 3 clocks a pixel do not depend on the misses; the share they make does. A frame at 23.01 MHz is about 384,000 clocks. A picture that drew 20,000 wall pixels would save 60,000 of them, about a sixth of a frame, whatever the texels cost. This is a prediction from Hitachi's rules alone. It has not been measured, and the emulators cannot show it (see below).
 
 The non-power-of-two variant, `I_DrawColumnNPo2A`, wraps the texture position by comparing and subtracting instead of masking [D32XR, sh2_draw.s]. That costs a compare and a conditional subtract per pixel, but lets the wall textures have any height.
 
@@ -191,20 +191,40 @@ The non-power-of-two variant, `I_DrawColumnNPo2A`, wraps the texture position by
 ## In emulators
 
 - **PicoDrive** charges each instruction a fixed number of clocks, close to Hitachi's figures with nothing in the way: 1 for most, 2 for unconditional branches and the 32-bit multiplies, 2 or 3 for taken conditional branches, 3 for `MAC` <span class="tag emulator">emulator</span> [PICODRIVE, cpu/sh2/mame/sh2.c, cpu/sh2/compiler.c]. Stock PicoDrive has no cache, no wait for a load's result, no slot splits and no multiplier waits.
-- **Aerobiz Ultimate's build of PicoDrive** adds, when `VRD_SH2_TIMING=1` is set and only in its interpreter core, the SH-2 wait states of each memory region from the 32X hardware manual and a model of the cache that keeps tags but no data. A hit, fetch or data, costs nothing; a miss costs a line fill, 12 clocks from SDRAM. It keeps PicoDrive's fixed instruction costs, so it has no slot splits, load-use waits or multiplier waits either. It has no write buffer: every write is charged its full bus time. And it charges a cartridge line fill as four longword accesses, about 32 to 68 clocks, half this book's figure, because it leaves open whether a longword read from the 16-bit cartridge is one bus cycle or two <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-093; VRD-NOTES, third_party/picodrive pico/32x/vrd_timing.c at commit `dfe7c36`]. Its figures are the right tool for cache misses and slow memory, the large costs, and say nothing about the small ones in this chapter.
+- **The Virtua Racing project's build of PicoDrive**, which Aerobiz Ultimate also uses and for which it wrote the timing model, adds, when `VRD_SH2_TIMING=1` is set and only in its interpreter core, the SH-2 wait states of each memory region from the 32X hardware manual and a model of the cache that keeps tags but no data. A hit, fetch or data, costs nothing; a miss costs a line fill, 12 clocks from SDRAM. It keeps PicoDrive's fixed instruction costs, so it has no slot splits, load-use waits or multiplier waits either. It has no write buffer: every write is charged its full bus time. And it charges a cartridge line fill as four longword accesses, about 32 to 68 clocks, half this book's figure, because it leaves open whether a longword read from the 16-bit cartridge is one bus cycle or two <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-093; VRD-NOTES, third_party/picodrive pico/32x/vrd_timing.c at commit `dfe7c36`]. The manuals answer that question: the cartridge area is 16 bits wide, the SH-2 splits a longword into two word cycles, and Sega gives its wait states per bus cycle, so 64 to 136 stands ([discrepancy 48](../appendices/discrepancies.md)). The build's figures are the right tool for cache misses and slow memory, the large costs, though low for cartridge misses, and say nothing about the small costs in this chapter.
 - **Ares** charges one clock for every instruction in its interpreter, whatever the instruction, plus the bus costs listed in [Bus controller and memory timing](bsc.md#emulators-do-not-show-this) and 12 clocks per cache line fill <span class="tag emulator">emulator</span> [ARES, component/processor/sh2/instruction.cpp, md/m32x/sh7604.cpp]. Branches, multiplies, load-use waits and slot splits all cost nothing extra.
 
-So no emulator we use can show any gain from the scheduling in this chapter. A loop that loses a quarter of its time to alignment runs at the same speed in all three. The test program below shows it: in ares 148 with the interpreter, both alignments of the column loop take 23.93 clocks a pass (counts `$BF82` and `$BF83`). PicoDrive does not run the free-running timer, so there the counts read 0. Profiles from any of them rank functions well enough, but the cycle counts inside a function have to be worked out by hand, or measured on a console with a timer (see [Keeping time on the 32X](timers.md#keeping-time-on-the-32x)).
+So no emulator we use can show any gain from the scheduling in this chapter. A loop that loses a quarter of its time to alignment runs at the same speed in all three. The [console test](#a-console-test) shows it in ares, and PicoDrive does not run the free-running timer at all, so there its counts read 0. Profiles from any of them rank functions well enough, but the cycle counts inside a function have to be worked out by hand, or measured on a console with a timer (see [Keeping time on the 32X](timers.md#keeping-time-on-the-32x)).
 
 ## A console test
 
-`pipeline-test` is a small 32X program that answers the second open question below on any console. The Master runs the column loop of the worked example twice, once with its label at 16*n* + 10 (4*n* + 2, where d32xr's sits) and once at 16*n* + 12 (4*n*), 16,384 passes each, reading texels and colours from SDRAM through the cache and storing to the frame buffer. Its stores go two bytes apart rather than a line apart, to stay inside the frame buffer; the step is a register, so the timing is the same. It times each run with the free-running timer at the CPU clock ÷ 8, after a first run that fills the cache, and leaves the two counts in COMM8 and COMM10. The 68000 prints them. No interrupts are used. The loop is the same 16 instructions as d32xr's, written for this book:
+`pipeline-test` is a small 32X program that settles the second and third open questions below on any console. The Master runs the column loop of the worked example with its label at 16*n* + 10 (loop A, at 4*n* + 2 like d32xr's) and at 16*n* + 12 (loop B, at 4*n*), 16,384 passes each. It reads texels and colours from SDRAM through the cache, and runs each loop with its stores going to three places:
+
+- **On-chip RAM**, the 2 KB of two-way mode at `0xC0000000`. These stores never reach the bus, so this pair tests the fetch/data rule alone. The test runs in two-way mode throughout; its code and tables fit easily in the remaining 2 KB of cache.
+- **SDRAM**, through the cache. The cache is write-through, so every store still goes out on the bus, through the write buffer.
+- **The frame buffer**, as d32xr does. The 32X VDP is in blank mode, so writes may be faster than during display.
+
+Stores go two bytes apart rather than a line apart, to stay inside each area (in on-chip RAM, all to one address); the step is a register, so the loop is the same.
+
+Each run is timed with the free-running timer at the CPU clock ÷ 32, after an untimed run that fills the cache. The counter wraps after 128 clocks a pass, more than five times the prediction for loop A; the program reads the timer's overflow flag after each run and marks an overflowed count with `!`. While the runs are timed, the Master has every interrupt masked; the Slave is asleep with every interrupt masked, so it neither fetches nor uses the bus, and it reports that before the Master starts; and the 68000 touches no 32X register or memory, watching only the Mega Drive VDP for three seconds before it reads the results. The loop is the same 16 instructions as d32xr's, written for this book:
 
 ```text
 {{#include ../howto/pipeline-test/sh2.s:loop}}
 ```
 
-The screen shows three rows. Row `A` is the loop at 4*n* + 2 and row `B` the loop at 4*n*. Each gives the predicted clocks per pass × 100 (2300 and 1700), the measured clocks per pass × 100, and the raw count in hex. Row `AB` gives the ratio A ÷ B × 1000: 1353 predicted, then measured. If Hitachi's rules hold, the measured row `B` is near 1700 and the ratio near 1353; if fetches and data accesses from the cache do not compete, the two rows match, as they do in ares. The frame buffer is in blank mode during the test, so writes to it may be faster than during display; at one store every eight or more clocks this should not matter.
+The screen gives clocks per pass × 100 for loops A and B and their difference A − B, first as calculated (`CALC`: 2300, 1700, 600), then for each destination (`RAM`, `SDRAM`, `FB`), and below them the raw counts in hex.
+
+**The criterion is the difference, A − B.** The rule under test says that loop A costs 6 clocks a pass more than loop B, whatever the stores cost: 600 on the screen. The absolute values and their ratio hold only if the stores are free; if each store costs something, both loops rise together and the ratio falls while the rule still holds. If fetches and data accesses from the cache do not compete, A − B is 0. The `RAM` pair is the clean measurement. Comparing the three pairs shows what a store costs: the `RAM` row against the `SDRAM` and `FB` rows, the same loop with and without bus writes, answers the fifth open question.
+
+Results in emulators, as the screen shows them:
+
+| Destination | ares 148, interpreter: A, B, A − B | PicoDrive |
+|-------------|------------------------------------|-----------|
+| On-chip RAM | 1600, 1600, 0 | 0 (no timer) |
+| SDRAM | 1600, 1600, 0 | 0 |
+| Frame buffer | 2393, 2393, 0 | 0 |
+
+In ares every instruction costs one clock, so both loops take 16 clocks a pass, and a store to SDRAM costs nothing extra. Its frame-buffer row comes close to loop A's prediction by coincidence: 16 instructions plus about 4 clocks for each of the two stores, which ares charges in full with no write buffer ([Emulators do not show this](bsc.md#emulators-do-not-show-this)). A console that shows about 24 for loop A has confirmed nothing; the evidence is the gap between the rows.
 
 Build it with the same tools as [Hello world on the 32X](../howto/32x-hello.md#building), from a 32X cartridge dump that supplies Sega's initial program:
 
@@ -212,15 +232,16 @@ Build it with the same tools as [Hello world on the 32X](../howto/32x-hello.md#b
 src/howto/pipeline-test/build.sh RETAIL_32X_ROM OUT_DIR
 ```
 
-The build script prints the address of every texel load, so a rebuild with another assembler can be checked; with GNU as 2.47 each loop's first is at `0x0600028A` and `0x060002EC`. Reports from a console, with its model, are welcome.
+The build script prints the address of every texel load, so a rebuild with another assembler can be checked; with GNU as 2.47 each loop's first is at `0x0600034A` and `0x060003AC`. Reports from a console, with its model, are welcome.
 
 ## Open questions
 
 - Do Hitachi's rules predict real 32X timings for code running from the cache, from SDRAM through the cache-through address, and from cartridge ROM?
-- Does d32xr's column loop, moved by 2 bytes, really save about 6 clocks per two pixels on a console? [The console test](#a-console-test) answers this: rows `A` and `B` near 2300 and 1700.
-- Does a data access that hits the cache really split a slot with a fetch that hits it? The programming manual says so for the cache; the SH7604 manual only implies it. The same test settles it: if they do not compete, rows `A` and `B` match.
+- Does d32xr's column loop, moved by 2 bytes, really save about 6 clocks per two pixels on a console? [The console test](#a-console-test) answers this: A − B near 600 in the `RAM` row, and in the other two if store costs do not hide it.
+- Does a data access that hits the cache really split a slot with a fetch that hits it? The programming manual says so for the cache; the SH7604 manual only implies it. The same test settles it: if they do not compete, A − B is 0.
 - Does `MAC.W` take 2 clocks or 3 with nothing else in the way ([discrepancy 47](../appendices/discrepancies.md))?
-- How long does a store to the frame buffer hold the write buffer, and does a following cache miss wait for all of it?
+- How long does a store to the frame buffer hold the write buffer, and does a following cache miss wait for all of it? The console test's `FB` row against its `RAM` row gives the average cost of a frame-buffer store in a loop like this one, though not how it divides between the store and the instructions after it.
+- Is a cartridge line fill 64 to 136 clocks, as the manuals add up, or the 32 to 68 that the Virtua Racing project's PicoDrive build charges ([discrepancy 48](../appendices/discrepancies.md))?
 - How often does d32xr's column drawer read texels from the cartridge rather than its SDRAM texture cache, in a typical level?
 
 ## Sources

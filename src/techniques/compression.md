@@ -123,7 +123,7 @@ Two rules decided why the SH-2 does not decode straight into it. A byte write of
 
 The SH-2 version is plain C, a line-by-line translation of the 68000 routine, with byte copies and no unrolling. Its output matches the 68000's exactly: a checksum over the 22,528-byte world map agrees with the reference decoder's, and screens captured from both builds are identical <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-046, HISTORY.md].
 
-How fast it is depends on what is counted. Stock PicoDrive models no SH-2 cache and no memory waits, so its SH-2 timings are instruction counts. The project measured on its own build of PicoDrive, which adds a cache and wait-state model checked against the manuals, not against a console [AU-NOTES, ROADMAP.md U-093]:
+How fast it is depends on what is counted. Stock PicoDrive models no SH-2 cache and no memory waits, so its SH-2 timings are instruction counts. The project measured on the Virtua Racing project's build of PicoDrive, which Aerobiz Ultimate also uses and to which it added a cache and wait-state model, checked against the manuals, not against a console [AU-NOTES, ROADMAP.md U-093]:
 
 | | 68000 | SH-2 | Ratio |
 |---|---|---|---|
@@ -131,7 +131,7 @@ How fast it is depends on what is counted. Stock PicoDrive models no SH-2 cache 
 | Decoding only, largest block (27,872 bytes) | 62.2 frames | 4.4 frames | 14 times sooner |
 | End to end, largest block | 62.2 frames | about 7.5 frames | about 8 times sooner |
 
-The decode-only figures are measured <span class="tag emulator">emulator</span>. In the model, 99.99% of the decoder's accesses hit the cache. With the model turned off, PicoDrive gives the SH-2 ideal memory with no waits at all, which is not the same as a console without a cache, and the decoder is about 10% faster than with it [AU-NOTES, ROADMAP.md U-046]. So in the model the cache brings the decoder within about 10% of ideal memory. That holds as far as the model can tell. It leaves out the cartridge bus the SH-2 shares with the 68000 (below).
+The decode-only figures are measured <span class="tag emulator">emulator</span>. In the model, 99.99% of the decoder's accesses hit the cache. With the model turned off, PicoDrive gives the SH-2 ideal memory with no waits at all, which is not the same as a console without a cache, and the decoder is about 10% faster than with it [AU-NOTES, ROADMAP.md U-046]. So in the model the cache brings the decoder within about 10% of ideal memory. That holds as far as the model can tell. The model also charges a cartridge line fill at half this book's figure, four bus cycles instead of eight ([discrepancy 48](../appendices/discrepancies.md)). The decoder reads its input through the cached cartridge address [AU-NOTES, disasm/sh2/master/lz.c]: the world map's 7,761 compressed bytes, about 490 line fills for 22,528 bytes out. At this book's figure each fill costs about 33 to 69 clocks more, which adds 0.7 to 1.5 clocks a byte: about 60.4 to 62.2 instead of 59.7 to 60.7, a change of 1% to 2.5%. It leaves out the cartridge bus the SH-2 shares with the 68000 (below).
 
 The end-to-end figure adds the two copies, estimated from instruction timings, not measured:
 
@@ -204,7 +204,7 @@ Both halve the rate by playing every sample twice. That is the cheapest compress
 
 ## In emulators
 
-PicoDrive does not stall an SH-2 that reads the cartridge while RV is set, and it does not charge for the cartridge bus being shared between the SH-2s and the 68000 ([The RV bit](../32x/architecture.md#the-rv-bit), [Two SH-2s, one bus](../sh2/bsc.md#two-sh-2s-one-bus)). Stock PicoDrive models no SH-2 cache and no memory wait states either, so its SH-2 timings are instruction counts; Aerobiz Ultimate's figures come from its own build, which adds both ([Moving decompression to an SH-2](#moving-decompression-to-an-sh-2)). An SH-2 decompressor reading the cartridge will be slower on a console than either build's figures, by an amount nobody has measured.
+PicoDrive does not stall an SH-2 that reads the cartridge while RV is set, and it does not charge for the cartridge bus being shared between the SH-2s and the 68000 ([The RV bit](../32x/architecture.md#the-rv-bit), [Two SH-2s, one bus](../sh2/bsc.md#two-sh-2s-one-bus)). Stock PicoDrive models no SH-2 cache and no memory wait states either, so its SH-2 timings are instruction counts; Aerobiz Ultimate's figures come from the Virtua Racing project's build, which adds both ([Moving decompression to an SH-2](#moving-decompression-to-an-sh-2)). An SH-2 decompressor reading the cartridge will be slower on a console than either build's figures, by an amount nobody has measured.
 
 ## What to take away
 

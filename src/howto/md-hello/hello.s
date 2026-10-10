@@ -88,7 +88,7 @@ start:
         move.w  #0x0EEE, (a1)           | CRAM word 1: white, for the text
 
         move.l  #0x40000000, (a0)       | VRAM $0000: tile n = glyph n
-        bsr     load_font               | expand the font into tiles 0-24
+        bsr     load_font               | expand the font into tiles 0-26
 | ANCHOR_END: font
 
 | ANCHOR: print
@@ -116,13 +116,7 @@ loop:
         moveq   #14, d1
         bsr     set_cursor
         move.l  frames, d5
-        moveq   #4-1, d3                | four hex digits, high first
-10:     rol.w   #4, d5
-        move.w  d5, d2
-        andi.w  #0x000F, d2
-        addq.w  #3, d2                  | "0" is glyph 3, and "A"-"F" follow "9"
-        move.w  d2, (a1)
-        dbra    d3, 10b
+        bsr     put_hex                 | the count's low word, in hex
         bra.s   loop
 
 vblank:
