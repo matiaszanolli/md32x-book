@@ -75,6 +75,7 @@
 - [Case study: porting Aerobiz Supersonic](patterns/case-study-aerobiz.md)
 - [Case study: After Burner Complete](patterns/case-study-afterburner.md)
 - [Case study: Star Wars Arcade](patterns/case-study-starwars.md)
+- [Case study: the ECCO CinePak demo](patterns/case-study-ecco.md)
 
 # Part VI: Techniques
 

@@ -1,6 +1,6 @@
 # Compression and decompression
 
-A Mega Drive cartridge holds a few megabytes, and a 32X game's art is 8 bits a pixel instead of 4, so it needs twice the space for the same picture. Almost every game in the sources compresses something. This chapter covers the formats they use: LZ for general data, run-length coding for sprites, and fixed-rate packing for sound. It also covers where each one is decompressed and what that costs on each CPU.
+A Mega Drive cartridge holds a few megabytes, and a 32X game's art is 8 bits a pixel instead of 4, so it needs twice the space for the same picture. Almost every game in the sources compresses something. This chapter covers the formats they use: LZ for general data, run-length coding for sprites, fixed-rate packing for sound, and, from one sample program, vector quantisation for video. It also covers where each one is decompressed and what that costs on each CPU.
 
 Four questions decide the format:
 
@@ -18,6 +18,7 @@ Four questions decide the format:
 | Colour and run bytes | Mortal Kombat II | Master SH-2 | Frame buffer, drawn directly | 6+2 or 4+4 bits a byte |
 | Signed control byte, runs of zeros | After Burner Complete | Master SH-2 | A cache in SDRAM | Decoded once per shape, then scaled from the cache |
 | Packed PCM, codebook PCM | Mortal Kombat II, Star Wars Arcade | Slave SH-2, in the PWM interrupt | PWM | Fixed cost per sample |
+| Cinepak, vector quantised video | ECCO CinePak demo | Master SH-2 | SDRAM, then the frame buffer | 6.8 times smaller than 15-bit pixels; table lookups and copies |
 
 ## LZ: copy what came before
 
@@ -193,6 +194,19 @@ Sound data is decoded in the PWM interrupt, one sample at a time, and must never
 
 Both halve the rate by playing every sample twice. That is the cheapest compression there is, and it costs the top half of the frequency range.
 
+## Cinepak: video as vector quantisation
+
+Video is the extreme case of data decoded every time it is shown: 30 pictures a second, each one a fresh frame buffer to fill. Sega's own sample plays Cinepak, which codes a picture as numbers into tables of small pixel blocks, and what that asks of the decoder is close to a copy [ECCO; CINEPAK-TD]. The whole demo is in [Case study: the ECCO CinePak demo](../patterns/case-study-ecco.md).
+
+A Cinepak picture is cut into 4 × 4 blocks, and a block is not stored as pixels. The picture carries **codebooks**, tables of up to 256 small pixel blocks, and a block is a few numbers into them. A *V4* block is four numbers, one for each 2 × 2 quarter. A *V1* block is one number, whose four pixels are each stretched over a quarter. A codebook entry is six bytes: four brightness values, one for each pixel, and one pair of colour values shared by the four. One flag bit a block says which kind it is. The first picture of a strip carries whole codebooks; later pictures can update chosen entries and mark whole blocks as unchanged, and a picture can be cut into strips that each carry codebooks of their own [CINEPAK-TD]. The ECCO movie uses only the simplest corner: one strip, whole codebooks, V4 blocks and nothing else.
+
+What the SH-2 does with it is two steps, and each is cheap in its own way:
+
+1. **Turn the codebook into pixels, once a picture.** Each six-byte entry becomes four 15-bit pixels, 8 bytes, with a few adds and clamps. That is 66,600 instructions for 256 entries.
+2. **Copy.** A V4 block takes four index bytes from the stream, and each index selects an 8-byte entry whose two longwords go to two rows of the block. It takes 52.6 instructions on average a block, 3.3 a pixel, with no multiply [ECCO, SH-2 code at `0x06000F5C`, `0x060002B4`].
+
+The conversion is done on the table, not the picture: 1,024 pixels instead of 40,960. A 256 × 160 picture costs about 400,000 instructions in all, copy to the frame buffer included, and the copy is half of them. The data is 12,128 bytes a picture, 2.4 bits a pixel; reading it byte by byte from the cartridge is about 12,100 bus cycles ([Case study](../patterns/case-study-ecco.md#where-the-time-goes)).
+
 ## Choosing a format
 
 - **Match the format to when it is decoded.** Bit-packed codes such as Koei's and ProPack's pack tighter, and cost more to decode: every code has to be shifted out of a bit buffer, a few bits at a time at best. An SH-2 is fast enough for any of these formats. On the 68000 a bit-packed format is affordable when the data is decoded once, at load time, as both Koei's screens and Mortal Kombat II's arenas are. Byte-aligned formats such as d32xr's waste a few bits and decode quickly on either CPU, so they suit data decoded while the game runs.
@@ -200,6 +214,7 @@ Both halve the rate by playing every sample twice. That is the cheapest compress
 - **The window sets the memory, not the output.** A resumable decoder with a 4 KB ring can take any size of picture or stream through 4 KB.
 - **Sprites drawn often** should be either drawn directly from a run-length format or decoded once into a cache.
 - **Sound** wants a fixed ratio and a fixed cost per sample.
+- **Video** wants a format whose decoder is lookups and copies, because every pixel of every picture goes through it. Cinepak's cost is in the table conversion, once a picture, and the copy, once a block ([Cinepak](#cinepak-video-as-vector-quantisation)).
 - **On the 32X, give the work to an SH-2.** It reads the cartridge itself and has the cache, and it is many times faster even with a plain C decoder. Keep the 68000 version, so the two can be compared byte for byte ([When moving a job pays](../patterns/cpu-split.md#when-moving-a-job-pays)).
 
 ## In emulators
@@ -232,4 +247,6 @@ PicoDrive does not stall an SH-2 that reads the cartridge while RV is set, and i
 - [32X-HWM](../appendices/bibliography.md#32x-hwm): §4.4, 68000 access to the frame buffer
 - [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x060065BC`-`0x0600676A`; shape table at `$173900`, RLE data at `$061000`, palette at `$173700`; draw lists read in PicoDrive
 - [SWA](../appendices/bibliography.md#swa): SH-2 code at `0x0600095C`-`0x06000AAE`
+- [ECCO](../appendices/bibliography.md#ecco): SH-2 code at `0x06000F5C`-`0x0600100E`, `0x060002B4`-`0x060003DA`; the movie's chunks and blocks, all 180 pictures
+- [CINEPAK-TD](../appendices/bibliography.md#cinepak-td): the stream format
 - [D32XR](../appendices/bibliography.md#d32xr): liblzss/lzss.c, liblzss/lzss.h, w_wad.c, marsnew.c, marsdraw.c, src-md/vgm.c

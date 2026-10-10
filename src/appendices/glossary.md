@@ -39,8 +39,10 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | Cache-through address | An SH-2 address that reaches the same memory as a normal address but skips the cache. On the 32X it is the normal address plus `0x20000000`. Required for hardware registers. |
 | CART | Bit 8 of the SH-2's interrupt mask register at `0x20004000`, read only: 0 when a cartridge is inserted. The Master's boot ROM uses it to choose between booting from the cartridge and from a Mega-CD. |
 | Cell / tile | An 8 × 8 pixel pattern of 4-bit pixels, 32 bytes in VRAM. Planes and sprites are built from them. Sega's manuals say "cell" or "pattern". |
+| Chroma | The colour part of a pixel in a YUV picture: two signed values, here U and V, that say how far the colour leans from grey. The brightness part is luma. Cinepak stores one chroma pair for each 2 × 2 pixels and four luma values. |
+| Cinepak | A video format that cuts each picture into 4 × 4 pixel blocks and codes each block as one or four numbers into tables of small pixel blocks (a vector quantiser). Made for slow CPUs: decoding is mostly table lookups and copies. The ECCO demo plays it on the Master SH-2. |
 | CMD interrupt | The interrupt the 68000 sends to an SH-2 by writing to `$A15102` (bit 0 for the Master, bit 1 for the Slave). Level 8. There is no interrupt the other way. |
-| Codebook | A table of short sample blocks or values that compressed data indexes into: each data byte stands for a whole block. Used by Star Wars Arcade's sound. |
+| Codebook | A table of short sample blocks or values that compressed data indexes into: each data byte stands for a whole block. Used by Star Wars Arcade's sound. In Cinepak video, a table of up to 256 small pixel blocks with their colour: each byte of the picture data picks one, so a picture is mostly a list of table numbers. |
 | Colormap | In Doom, a 256-byte table that maps each palette colour to a darker one; 32 of them give 32 light levels. |
 | Command word | The two-word value written to the VDP control port to choose a memory (VRAM, CRAM or VSRAM), a direction and an address, or to start a DMA. |
 | Communication ports | Eight 16-bit registers at `$A15120-$A1512F` (SH-2 `0x20004020`) that the 68000 and both SH-2s can read and write. Also called COMM registers, with two different numbering schemes in use; see [68000 and SH-2 communication](../32x/communication.md#addresses-and-names). |
@@ -93,7 +95,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | Initial program | Sega's fixed 1040-byte block at cartridge `$3F0-$7FF`. Every 32X game must carry it unchanged. It runs first on the 68000, enables the 32X, and reports its checks in the carry flag. |
 | Interlace mode 2 | The VDP's double-resolution mode: 448 lines (480 on PAL) shown as alternate lines in alternate frames, with 8 × 16 tiles. |
 | Jump table | A list of addresses, or of jump instructions, that a program indexes to choose a routine. The 32X cartridge has a fixed one at `$200` for the 68000's exceptions. |
-| Keyframe | A stored pose or position at one moment of an animation; the frames between are worked out from the keyframes on either side. |
+| Keyframe | A stored pose or position at one moment of an animation; the frames between are worked out from the keyframes on either side. In video, a key frame is a picture stored whole, without reference to any other. |
 | Latch byte | A PSG write with bit 7 set. It chooses which of the eight PSG registers the following data bytes go to, and writes that register's low four bits. |
 | Level of detail | Drawing a simpler model of an object when it is far away. |
 | libgcc | GCC's library of helper routines, such as division, that compiled code calls when the CPU has no single instruction for the job. It must be built for the same CPU and byte order as the program. |
@@ -105,6 +107,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | Literal pool | A table of constants placed after a piece of SH-2 code. The SH-2 has only 8-bit immediates, so larger constants and addresses are loaded from the pool with a PC-relative `MOV`. |
 | Load address | Where a section's bytes sit in the image, as opposed to the address it runs at. On the 32X, `.data` is loaded in the cartridge and copied to SDRAM, where it runs. |
 | Load-use stall | The clock an SH-2 loses when an instruction uses a register that the load just before it is still filling. One unrelated instruction in between avoids it. |
+| Luma | The brightness part of a pixel in a YUV picture, one value per pixel. See chroma. |
 | Lump | A named block of data in a Doom WAD archive: a level's things, a texture, a sound. |
 | LZSS | A family of LZ compression formats in which a flag bit before each item says whether it is a literal byte or a back-reference. |
 | M_OK / S_OK | The four-character messages the Master and Slave SH-2 boot ROMs post at `$A15120` and `$A15124` just before starting the game's code. |
@@ -151,6 +154,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | Save state | A snapshot of an emulated machine's whole state (CPU registers, memories, chip registers) in a file, from which the emulator can carry on. Its format belongs to the emulator and often its version. |
 | SCI | The SH-2's serial port. On the 32X the Master's and Slave's ports are wired to each other and to nothing else. |
 | Section | A named part of an object file, such as `.text` for code or `.data` for initialised data. The linker script places sections; one it does not name may end up outside the image. |
+| Sega FILM | The container of Sega's `.cpk` movies: a header with a table of samples (offset, length and two info words each), then the samples, each one a Cinepak picture or a piece of sound. |
 | Sequencer | The part of a sound driver that reads music or effect data and decides, tick by tick, which notes start and stop and what to write to the sound hardware. |
 | Shadow / highlight | A VDP mode (register 12 bit 3) that shows each pixel at normal, darker or brighter level depending on priority bits and operator sprites. |
 | Shift register | A row of bits that moves one place at each clock tick. The PSG's noise channel outputs the bit that drops out; feeding some bits back into the other end makes white noise. |
@@ -160,6 +164,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | Sound driver | The program that plays a game's music and effects: it takes requests from the game, runs the sequencer and writes the sound chips or feeds the samples. |
 | Sound RAM | The Z80's 8 KB of RAM, at Z80 `$0000-$1FFF` and 68000 `$A00000-$A01FFF`. Holds the sound program and its data. |
 | Staging buffer | Memory a picture or a block of data is built in before it is copied, finished, to where it is used. |
+| Strip | A horizontal band of a Cinepak picture with codebooks of its own. Each strip can be decoded without the others, unless it asks to reuse the previous strip's codebooks. ECCO's movie has one strip, the whole picture. |
 | Supervisor mode | The 68000's privileged execution state, entered at reset and on every exception. Privileged instructions are legal only here; Mega Drive software never leaves it. |
 | Span | A horizontal run of pixels on one row. Filled shapes are usually drawn as one span per row. |
 | TAS.B | SH-2 test-and-set: reads a byte, sets its top bit and writes it back without letting go of the bus. Used for locks between the two SH-2s, though Sega's manual forbids it on the 32X. |
@@ -174,6 +179,7 @@ Terms are explained in plain words. Add a term the first time a chapter uses it.
 | UBC | The SH-2's user break controller: two hardware breakpoints that raise an interrupt when a chosen address or value is accessed. No 32X program in this book's sources uses it. |
 | User header | 48 bytes at cartridge `$3C0` that tell the Master SH-2 boot ROM which SH-2 code to copy into SDRAM, and where each SH-2 starts. |
 | VBR | Vector base register: where an SH-2's exception vector table starts. Vector *n* is read from VBR + 4*n*. Set from the user header at boot. |
+| Vector quantisation | Coding a picture as numbers that pick entries from a table of small pixel blocks, instead of coding pixels one by one. The table is built for the picture, so it holds the blocks that picture needs most. Cinepak is one. |
 | Vector ROM | The 32X's 256-byte ROM at 68000 address `$000000` once the 32X is switched on. It sends each exception to a jump table in the cartridge at `$880200`. |
 | VGM | A file format that records the register writes sent to sound chips, with their timing, so a player can replay them. |
 | Visplane | In Doom's renderer, one floor or ceiling area on screen: the columns it covers, each with a top and bottom row, sharing one height, texture and light. |
