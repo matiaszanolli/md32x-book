@@ -110,7 +110,7 @@ GENVDP reports that a change to these bits takes effect only outside the active 
 
 Interlace mode 2 changes most of the VDP's units [MD-SWM §2.8, §2.10, §2.13; GENVDP §5, §13]:
 
-- **Tiles are 8 × 16 pixels**, 64 bytes each. Bit 0 of a tile number is ignored, so tile numbers effectively count in 64-byte steps, and VRAM holds half as many tiles.
+- **Tiles are 8 × 16 pixels**, 64 bytes each, and VRAM holds half as many. Which tile numbers address them is disputed: GENVDP says bit 0 of the number is ignored, and four emulators put tile *n* at *n* × 64 and drop the top bit instead ([Planes and scrolling](vdp-planes.md#tiles), [discrepancy 51](../appendices/discrepancies.md)).
 - **Sprites** are twice as tall. Their y is 10 bits, and the screen starts at y = 256.
 - **Vertical scroll** values are 11 bits.
 - **The H/V counter's** line byte puts line bit 8 in place of bit 0.

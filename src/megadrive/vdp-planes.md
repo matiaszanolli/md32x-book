@@ -6,7 +6,9 @@ The VDP's backgrounds are two grids of tiles, plane A and plane B, plus the wind
 
 A tile (Sega says "pattern" or "cell") is 8 × 8 pixels at 4 bits per pixel: 32 bytes, 4 bytes per row, top row first. In each byte the high nibble is the left pixel. Pixel value 0 is transparent; values 1-15 pick a colour from the palette chosen by the name table entry or sprite [MD-SWM §2.8, pattern generator; GENVDP §12].
 
-Tile *n* lives at VRAM address *n* × 32. Tiles can go anywhere in VRAM that the tables do not use, including unused parts of a table [GENVDP §12]. In interlace mode 2 a tile is 8 × 16 pixels and 64 bytes, and bit 0 of the tile number is ignored [MD-SWM §2.8; GENVDP §13]. See [Color, shadow/highlight and interlace](vdp-color.md).
+Tile *n* lives at VRAM address *n* × 32. Tiles can go anywhere in VRAM that the tables do not use, including unused parts of a table [GENVDP §12]. The sprite table and the horizontal scroll table are tables too, as are the name tables.
+
+In interlace mode 2 a tile is 8 × 16 pixels and 64 bytes [MD-SWM §2.8]. Which numbers address them is disputed <span class="tag disputed">disputed</span> ([discrepancy 51](../appendices/discrepancies.md)). GENVDP says bit 0 of the name is ignored, which would put tile *n* at (*n* AND NOT 1) × 32 [GENVDP §13]. Genesis Plus GX, ares, BlastEm and PicoDrive all do something else: tile *n* is at *n* × 64, so names count the 64-byte tiles one by one, and it is the top bit of the 11-bit name that is lost, since only ten bits are used <span class="tag emulator">emulator</span> [GPGX, core/vdp_render.c, name `& 0x3FF`; ARES, ares/md/vdp/layer.cpp; BLASTEM, vdp.c; PICODRIVE, pico/draw.c]. Build tiles for the mode with the emulators' reading in mind, and test on a console. See [Color, shadow/highlight and interlace](vdp-color.md).
 
 ## Name table entries
 
@@ -33,7 +35,7 @@ address of tile (x, y) = base + (y × width + x) × 2
 
 So one row is 64, 128 or 256 bytes (`$40`, `$80`, `$100`) for widths of 32, 64 or 128 [MD-SWM §2.8]. Both planes wrap in both directions: scrolling past the right edge shows the left edge again.
 
-The visible screen (40 × 28 tiles at most) is smaller than every plane, so part of each plane is always off screen. That spare part is where a scrolling game writes the next row or column before it comes into view. The [streaming](../patterns/streaming.md) chapter shows how.
+The visible screen is up to 40 tiles wide and 28 high (30 in PAL's 30-row mode). A plane taller or wider than that has a spare part off screen, and that is where a scrolling game writes the next row or column before it comes into view. The [streaming](../patterns/streaming.md) chapter shows how. A plane 32 tiles high has only 4 spare rows (2 in 30-row mode), and a plane 32 tiles wide is narrower than the 320-pixel screen of 40-column mode: it has no spare columns, and its left edge shows again at the right of the screen. That combination is legal, but it cannot be scrolled sideways without the wrapped copy showing, so use a plane 64 wide for horizontal scrolling in 40-column mode.
 
 Some games also use off-screen plane rows as plain storage, and that becomes a trap when the plane size changes. Aerobiz Supersonic keeps data in plane rows below the 28 that are shown, at fixed VRAM addresses. When the Aerobiz Ultimate port widened the planes from 32 to 64 tiles, the row stride doubled and those rows landed inside the visible area. A trace of VRAM writes found one DMA writing 192 bytes to `$EA80` at a fixed address [AU-NOTES, PORT_ARCHITECTURE.md] <span class="tag emulator">emulator</span>. Before changing register 16 in someone else's game, find every absolute address that points into a name table.
 
@@ -58,7 +60,7 @@ Per-line scrolling is the basis of most raster effects: waves, rotating towers, 
 
 The per-row mode is cheaper when bands of 8 lines are enough. Aerobiz uses it to move just the map part of the screen [AB-DISASM, PackScrollDeltaToVRAM.asm, AnimateScrollEffect.asm, AnimateScrollWipe.asm]:
 
-- It sets register 11 to `$02`, clears a table in RAM, writes the scroll value only into the 22 rows that hold the map, and copies the table to VRAM by DMA. The status rows above and below stay still with no window plane needed.
+- It sets register 11 to `$02`, clears a table in RAM, writes the scroll value only into the 22 rows that hold the map, and copies the table to VRAM by DMA. The status rows above and below stay still with no window plane needed, because the map only moves sideways; a map that also scrolled vertically would carry them with it, since the per-row mode only moves whole rows horizontally.
 - Its "spin" of the world map speeds up from 1 to 16 pixels per frame, cruises, slows down again, and wraps at 256 pixels.
 - Its screen shake alternates the offset's sign with a shrinking size: ±16, ±16, ±15 … ±1, holding each step for 5 frames.
 
@@ -68,7 +70,7 @@ Register 11 bit 2 chooses whole-plane or per-column vertical scrolling. The valu
 
 A value is 10 bits (11 in interlace mode 2) and wraps around the plane's height. A larger value moves the plane **up** on screen [MD-SWM §2.8; MD-TO, V scroll]. In interlace mode 2 it counts lines of the 448-line picture: the emulators add it to twice the field line, which is why it needs the extra bit. Genesis Plus GX and BlastEm also add 1 in the odd field; PicoDrive does not at this point. A value of 2 moves the plane up by one line of each field <span class="tag emulator">emulator</span> [GPGX, core/vdp_render.c; BLASTEM, vdp.c; PICODRIVE, pico/draw.c].
 
-VSRAM is inside the VDP, so it can be changed in the middle of a frame from a line interrupt. Sega's manual notes that the VDP reads what it needs for the next line within about 36 cycles of the line interrupt [MD-SWM §2.3]. Aerobiz uses this for a stretch effect: on each line, its line interrupt writes "source row for this line minus the line number" into both planes' VSRAM entries, which lets a table of row numbers squash, stretch or flip the picture [AB-DISASM, VInt_Handler3.asm; see [Timing](vdp-timing.md#organising-the-frame)].
+Horizontal scroll has a table with an entry for every line, but vertical scroll has only one value per plane, or one per column. A vertical effect that changes down the screen has no table to hold its values, so it has to rewrite VSRAM while the picture is being drawn, from a line interrupt. Sega's manual notes that the VDP reads what it needs for the next line within about 36 cycles of the line interrupt [MD-SWM §2.3]. Aerobiz uses this for a stretch effect: on each line, its line interrupt writes "source row for this line minus the line number" into both planes' VSRAM entries, which lets a table of row numbers squash, stretch or flip the picture [AB-DISASM, VInt_Handler3.asm; see [Timing](vdp-timing.md#organising-the-frame)].
 
 ### The left column fault
 
@@ -83,7 +85,7 @@ What does appear depends on the console, and the emulators disagree <span class=
 
 The older-console row comes from Genesis Plus GX, whose author checked it on a PAL Mega Drive 2, and ares copies it. BlastEm models both columns of the table and reports that consoles with 40 words of VSRAM vary among themselves in H40. All three give 0 for H32, which BlastEm marks as still to be tested <span class="tag emulator">emulator</span> [GPGX, core/vdp_render.c; ARES, ares/md/vdp/layers.cpp; BLASTEM, vdp.c]. PicoDrive follows a different guess: column 0's values in H40, and VSRAM words 32-33 in H32 [PICODRIVE, pico/draw.c]. MAME reads VSRAM words 62 and 63 for planes A and B in both widths, past the 40 words the older consoles have, so it shows whatever was last written there [MAME, src/devices/video/315_5313.cpp]. Games that show the effect include Gynoug and Cutie Suzuki no Ringside Angel (H40), and Formula One and Kawasaki Superbike Challenge (H32) [GPGX, core/vdp_render.c].
 
-No value works on every console, so do not draw anything meaningful there. The usual cover is to hide the first 16 pixels: with the window plane, with high-priority tiles, or with sprites.
+No value works on every console, so do not draw anything meaningful there. The usual cover is to hide the first 16 pixels: with the window plane, with high-priority tiles, or with sprites. Register 0 bit 5 blanks the leftmost 8 pixels of every line to the backdrop colour, which hides half of the worst case without using a layer, but 8 is not 15, and the register chapter has it only from Genesis Plus GX, with no console report ([Registers 0 and 1](vdp-registers.md#registers-0-and-1-mode-set-1-and-2)).
 
 ## The window
 
@@ -115,7 +117,7 @@ A few habits from shipped code:
 
 - **Recolour a region without a RAM copy.** To highlight a menu, Aerobiz reads a rectangle of the name table back from VRAM into a buffer on the stack. It replaces each entry's palette bits (`and #$9FFF`, then add the new palette × `$2000`) and writes the block back. Tile numbers and flips survive untouched [AB-DISASM, ApplyPaletteShifts.asm]. Reading VRAM has its own timing rule (see [the VDP overview](vdp.md#using-the-data-port)), and Aerobiz does the readback in vertical blank, a few rows per frame.
 - **Draw boxes from nine tiles.** Aerobiz's dialog boxes fill the interior with one DMA, then place four corner tiles and four edge tiles from a run of consecutive tile numbers. All of them have the priority bit set, so boxes cover low-priority sprites. The same call records the box's inner edges as the text area, so later text output wraps inside it [AB-DISASM, DrawBox.asm]. See [Text and menus](../techniques/text-menus.md).
-- **Step through rows by adding to the command.** A VDP command holds address bits 13-0 in its bits 29-16, so the next row of a name table is the current command plus row stride × `$10000`: `$00400000` for 32-wide planes, `$00800000` for 64, `$01000000` for 128. Aerobiz picks the constant from its copy of register 16 [AB-DISASM, CmdDMABatchWrite.asm]. This works as long as the row does not cross a 16 KB boundary of VRAM.
+- **Step through rows by adding to the command.** A VDP command holds address bits 13-0 in its bits 29-16, so the next row of a name table is the current command plus row stride × `$10000`: `$00400000` for 32-wide planes, `$00800000` for 64, `$01000000` for 128. Aerobiz picks the constant from its copy of register 16 [AB-DISASM, CmdDMABatchWrite.asm]. The command's first word holds only address bits 13-0, so a carry past a 16 KB boundary of VRAM would go into the wrong bits. A table at a legal address never reaches one: planes A and B start on `$2000` boundaries and are at most `$2000` long, and the window starts on a `$800` boundary (`$1000` in 40-column mode) and is at most 2 KB (4 KB) long. Only a table placed at an address the registers cannot express would.
 
 ## Open questions
 
@@ -129,9 +131,9 @@ A few habits from shipped code:
 - [GENVDP](../appendices/bibliography.md#genvdp): §12 patterns, §13 background layers, §17 window registers
 - [AB-DISASM](../appendices/bibliography.md#ab-disasm): PackScrollDeltaToVRAM, AnimateScrollEffect, AnimateScrollWipe, VInt_Handler3, ApplyPaletteShifts, DrawBox, CmdDMABatchWrite
 - [AU-NOTES](../appendices/bibliography.md#au-notes): PORT_ARCHITECTURE.md, plane rows used as storage
-- [GPGX](../appendices/bibliography.md#gpgx): core/vdp_render.c, left partial column under per-column vertical scrolling
-- [ARES](../appendices/bibliography.md#ares): ares/md/vdp/layers.cpp, the same
-- [BLASTEM](../appendices/bibliography.md#blastem): vdp.c, systems.cfg, the same by console revision
+- [GPGX](../appendices/bibliography.md#gpgx): core/vdp_render.c, left partial column under per-column vertical scrolling; interlace mode 2 tile names
+- [ARES](../appendices/bibliography.md#ares): ares/md/vdp/layers.cpp, the same; layer.cpp, interlace mode 2 tile names
+- [BLASTEM](../appendices/bibliography.md#blastem): vdp.c, systems.cfg, the same by console revision; interlace mode 2 tile names
 - [PICODRIVE](../appendices/bibliography.md#picodrive): pico/draw.c, the same; horizontal and vertical scroll in interlace mode 2
 - [MAME](../appendices/bibliography.md#mame): src/devices/video/315_5313.cpp, the left partial column and interlace mode 2
 - [MD-TO](../appendices/bibliography.md#md-to): H scroll data table, V scroll
