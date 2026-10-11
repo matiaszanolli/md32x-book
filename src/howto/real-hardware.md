@@ -78,6 +78,7 @@ These are the questions where a console result would change code or settle a dis
 | How long does an auto fill take? | Time a 256-word fill until FEN clears | [The 32X VDP](../32x/vdp.md#open-questions) |
 | How much do the two SH-2s slow each other? | Time one SH-2's SDRAM loop with the other idle, then busy | [Splitting work across three CPUs](../patterns/cpu-split.md#open-questions) |
 | How many waits does the 68000 see on the cartridge while the SH-2s read it? | Time a 68000 loop from the cartridge, with the SH-2s idle and then reading ROM | [Access timing](../32x/timing.md#open-questions) |
+| Does an SH-2 cartridge read ever take more than 17 + 12 clocks while the 68000 fetches from the cartridge? Does a 68000 wait longer than 5 clocks while an SH-2 fills lines? | Time single SH-2 word reads from the cartridge with the 68000 looping in ROM, and time that 68000 loop while an SH-2 fills cache lines back to back; a longer wait on either side means the bus is held longer than the page assumes | [Access timing](../32x/timing.md#why-most-figures-are-ranges) |
 
 ### Communication and the FIFO
 
