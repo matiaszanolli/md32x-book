@@ -8,7 +8,7 @@ The VDP can move data into its own memories without the 68000 copying it word by
 |---|---|---|---|
 | Register 23 bits 7-6 | `0x` | `10` | `11` |
 | Source | ROM or work RAM | One data word | VRAM |
-| Destination | VRAM, CRAM or VSRAM | VRAM | VRAM |
+| Destination | VRAM, CRAM or VSRAM | VRAM (fills to CRAM and VSRAM are not covered here) | VRAM |
 | Length counts | Words | Bytes | Bytes |
 | Starts when | The command's second word is written | A word is written to the data port | The command's second word is written |
 | The 68000 | Stopped until the end | Runs, but may not touch the VDP | Runs, but may not touch the VDP |
@@ -53,6 +53,8 @@ A complete transfer of a block of words from ROM to VRAM, with the guards from t
 ;      d2.w = VRAM destination (even), a4 = $C00004
 ; Needs: Reg1Copy, a byte in RAM holding register 1's current value with M1 = 0;
 ;        DmaCmd, a longword in work RAM.
+; The caller must not let the transfer cross a 128 KB boundary of the source
+; (split it in two first, see "Do not cross a boundary").
 ; Changes: d0-d3, a0. SR is saved and restored.
 DmaToVram:
         move.w  sr,-(sp)
@@ -95,9 +97,9 @@ DmaToVram:
         move.l  d2,DmaCmd
         move.w  DmaCmd,(a4)          ; first word
         move.w  DmaCmd+2,(a4)        ; second word, read from RAM: the DMA runs now
-.busy:  move.w  (a4),d3
-        btst    #1,d3                ; wait until the DMA bit clears
-        bne.s   .busy
+.busy:  move.w  (a4),d3          ; a copy from 68000 memory has finished by now,
+        btst    #1,d3                ; so this loop only matters if it is changed
+        bne.s   .busy                ; into a fill or copy; kept for symmetry
         move.w  #$8100,d3
         move.b  Reg1Copy,d3          ; M1 off again
         move.w  d3,(a4)
@@ -125,7 +127,7 @@ Only registers 21 and 22 count, and register 23 never changes (see [Setting one 
 
 SGDK, the open-source Mega Drive development kit, follows the same rule. Its DMA routines check whether a transfer reaches past the end of its 128 KB block and, if it does, split it into two DMAs at the boundary [SGDK, src/dma.c, `DMA_doDma` and `DMA_queueDma`]. Do the same, or align graphics in ROM so that no block straddles a 128 KB boundary.
 
-Sega's reference sheet gives a stricter rule from a licensee's experience: a DMA should not cross a 64 KB boundary [MD-REF, DMA ROM to VRAM]. No other source supports it. The test above rules out a wrap at 64 KB, and Nemesis's counter model, PicoDrive and SGDK all let a transfer run across a 64 KB boundary inside a 128 KB block. notaz's console test tries that case. Its ROM holds a different value in every longword, and a 128 KB DMA from `$3C0014` reads on across `$3D0000` and wraps only at `$3E0000` [TESTPICO, t_dma_zero_wrap]. No shipped code read for this book tries it. A DMA from work RAM cannot tell the two rules apart, because the 64 KB of RAM repeats throughout `$E00000-$FFFFFF`, so either wrap lands on the same bytes. In logs of 5,000 emulated frames, the 68000 sides of Star Wars Arcade, Mortal Kombat II and Knuckles' Chaotix made DMAs only from RAM. Aerobiz made 150 from ROM, and all of them stayed inside one 64 KB block <span class="tag emulator">emulator</span> [SWA; MK2; CHAOTIX; AB-DISASM; PICODRIVE with a DMA log added]. The 64 KB rule is wrong ([discrepancy 13](../appendices/discrepancies.md)).
+Sega's reference sheet gives a stricter rule from a licensee's experience: a DMA should not cross a 64 KB boundary [MD-REF, DMA ROM to VRAM]. No other source supports it. The test above rules out a wrap at 64 KB, and Nemesis's counter model, PicoDrive and SGDK all let a transfer run across a 64 KB boundary inside a 128 KB block. notaz's console test tries that case. Its ROM holds a different value in every longword, and a 128 KB DMA from `$3C0014` reads on across `$3D0000` and wraps only at `$3E0000` [TESTPICO, t_dma_zero_wrap]. No shipped code read for this book tries it. A DMA from work RAM cannot tell the two rules apart, because the 64 KB of RAM repeats throughout `$E00000-$FFFFFF`, so either wrap lands on the same bytes. In logs of 5,000 emulated frames, the 68000 sides of Star Wars Arcade, Mortal Kombat II and Knuckles' Chaotix made DMAs only from RAM. Aerobiz made 150 from ROM, and all of them stayed inside one 64 KB block <span class="tag emulator">emulator</span> [SWA; MK2; CHAOTIX; AB-DISASM; PICODRIVE with a DMA log added]. So Sega's 64 KB boundary is not the real one: the hardware wraps at 128 KB, and a program that obeys the 64 KB rule is safe and only wastes alignment ([discrepancy 13](../appendices/discrepancies.md)).
 
 ### CRAM and VSRAM
 
@@ -163,7 +165,7 @@ A copy moves bytes from one VRAM address to another [MD-SWM §2.7, VRAM copy; GE
 3. Registers 19-20 = the number of bytes.
 4. Write a command with CD5 and CD4 set and CD1-CD0 = 0: `$000000C0` plus the destination address bits. The copy starts.
 
-It reads one byte, writes one byte, and steps the destination by register 15. Because it alternates byte by byte, a copy whose source and destination overlap may not give the expected result [MD-SWM §2.7]. It runs at half the rate of a fill. Aerobiz uses one routine for all three kinds: a small selector sets register 23 to `$80` or `$C0`, or builds a 68000 source, and the rest of the code is shared [AB-DISASM, SelectVDPInit.asm, ConfigVDPColors.asm, ConfigVDPScroll.asm].
+It reads one byte, writes one byte, and steps the destination by register 15. Because it alternates byte by byte, a copy whose source and destination overlap may not give the expected result [MD-SWM §2.7]. It runs at half the rate of a fill. Aerobiz reaches all three kinds through one selector, which tests flag bits in a register and calls one of three separate routines: `ConfigVDPDMA` for 68000 sources, `ConfigVDPScroll` for copies (register 23 = `$C0`) and `ConfigVDPColors` for fills (register 23 = `$80`). They are not one routine with different settings. They share the wait for an earlier DMA before they start, and the wait for the DMA bit to clear before they return [AB-DISASM, SelectVDPInit.asm, DispatchVDPWrite.asm, ConfigVDPDMA.asm, ConfigVDPColors.asm, ConfigVDPScroll.asm].
 
 ## How much fits in a frame
 
@@ -204,9 +206,9 @@ The patterns below are all from shipped code.
 7. For a RAM source, rewrite the first word.
 8. Restore register 1 (M1 off), release the Z80 and restore the interrupt mask.
 
-**Only in vertical blank.** Palette animation in Aerobiz checks the status register's VB bit before starting its CRAM DMA. If the vertical blank handler is running late and the display has started, it skips this frame's update instead of risking coloured dots on screen [AB-DISASM, VInt_Sub1.asm]. Virtua Racing Deluxe's vertical interrupt does all its Mega Drive VDP traffic itself: scroll and colour registers, then a 64-colour palette DMA from ROM inside a Z80 bus request [VRD-NOTES, analysis/VINT_HANDLER_ARCHITECTURE.md].
+**Only in vertical blank.** Palette animation in Aerobiz checks the status register's VB bit before starting its CRAM DMA. If the vertical blank handler is running late and the display has started, it skips this frame's update instead of risking coloured dots on screen [AB-DISASM, VInt_Sub1.asm]. Virtua Racing Deluxe's vertical interrupt does all its Mega Drive VDP traffic itself: scroll and colour registers, then a 64-colour palette DMA inside a Z80 bus request. The project's notes call that DMA a copy from ROM [VRD-NOTES, analysis/VINT_HANDLER_ARCHITECTURE.md], but the retail cartridge's code at `$881D46`-`$881D56` programs a length of `$0040`, register 21 = `$40`, register 22 = `$C2` and register 23 = `$7F`: a source of work RAM at `$FF8480`. Every DMA set-up from 68000 memory in the cartridge is the same, 19 in all, each with register 23 = `$7F`; the only values it writes to the DREQ control register are 68S (`$04`) and the 0 of its start-up table, so RV is never set [32X-ROMSET, Virtua Racing Deluxe 68000 code, scanned for the instruction forms the game uses]. The game is therefore no evidence on whether a 32X serves cartridge addresses to the VDP.
 
-**Big uploads in chunks.** Aerobiz splits large tile sets into DMAs of 128 tiles (4 KB) and waits 4 frames between them, so a screen load never stalls the game for one long transfer [AB-DISASM, VRAMBulkLoad.asm].
+**Big uploads in chunks.** For a load of 512 tiles (16 KB) or more, Aerobiz splits the tile set into DMAs of 128 tiles (4 KB) and waits 4 frames after each, then 2 after the remainder, so a screen load never stalls the game for one long transfer. A smaller load is one DMA followed by a wait of its tile count divided by 100 frames. The wait does nothing when the game's copy of register 1 has the vertical interrupt off [AB-DISASM, VRAMBulkLoad.asm, CmdWaitFrames.asm]. This loader is the step after decompression in the screen loads whose stalls the [compression chapter](../techniques/compression.md#moving-decompression-to-an-sh-2) measures: the largest block, 27,872 bytes or 871 tiles if loaded whole, would take six chunks and the remainder, 26 frames of waiting. The compression chapter puts the whole stall at 74 to 76 frames in the original, 62 of them decoding that block, and at 8 to 10 frames once the SH-2 does the decoding. A stall of 8 to 10 frames cannot hold 26 frames of waiting, so, if the port leaves the loader's waits alone (not checked), the stall's uploads either do not wait (the vertical interrupt may be off during the load) or do not go through this loop. Which of the two was not traced.
 
 **Animated tiles.** Up to 16 tiles of water, lights and the like are animated by DMAing one 32-byte frame per tile from ROM when a timer runs out. A bit mask says which slots are active [AB-DISASM, ControllerRead.asm, which despite its name runs the tile animation].
 
@@ -214,7 +216,7 @@ The patterns below are all from shipped code.
 
 ## DMA on the 32X
 
-With the 32X switched on, the 68000 sees the cartridge at `$880000-$8FFFFF` and `$900000-$9FFFFF`, not at `$000000`. The register encoding is not the problem: `$900000` fits in registers 21-23. The problem is that the 32X does not appear to serve those addresses to the VDP when it is the one reading. To DMA from the cartridge, the 68000 sets the RV bit, which puts the cartridge back at `$000100-$3FFFFF` for the length of the transfer [32X-HWM §3.1 pp.13-14; AU-NOTES, PORT_ARCHITECTURE.md]. Everything the [RV bit section](../32x/architecture.md#the-rv-bit) lists then applies: interrupts off, code that sets RV running from RAM, SH-2s stalled if they touch the cartridge, and twelve bytes that read wrongly.
+With the 32X switched on, the 68000 sees the cartridge at `$880000-$8FFFFF` and `$900000-$9FFFFF`, not at `$000000`. The register encoding is not the problem: `$900000` fits in registers 21-23. The problem is that the 32X does not appear to serve those addresses to the VDP when it is the one reading. To DMA from the cartridge, the 68000 sets the RV bit, which puts the cartridge back at `$000100-$3FFFFF` for the length of the transfer (the first 256 bytes stay the 32X's own vector ROM) [32X-HWM §3.1 pp.13-14; AU-NOTES, PORT_ARCHITECTURE.md]. Everything the [RV bit section](../32x/architecture.md#the-rv-bit) lists then applies: interrupts off, code that sets RV running from RAM, SH-2s stalled if they touch the cartridge, and twelve bytes that read wrongly.
 
 Aerobiz Ultimate handles this in one place, the routine every DMA already went through <span class="tag emulator">emulator</span> [AU-NOTES, PORT_ARCHITECTURE.md, disasm/32x/dma_stub.asm]:
 
@@ -261,6 +263,7 @@ DMA from the Mega-CD's Word RAM has a separate fault when a 32X is attached, and
 - [BLASTEM](../appendices/bibliography.md#blastem): `vdp.c`, DMA source counter, `is_refresh`
 - [32X-HWM](../appendices/bibliography.md#32x-hwm): §3.1 RV bit and the cartridge windows; §3.2.1 bank set register; §3.3 blank lines
 - [32X-TI](../appendices/bibliography.md#32x-ti): item 13
-- [AB-DISASM](../appendices/bibliography.md#ab-disasm): ConfigVDPDMA, the RAM routine at `$FFF000`, BulkCopyVDP, SelectVDPInit, ConfigVDPColors, ConfigVDPScroll, VInt_Sub1, VRAMBulkLoad, ControllerRead, CmdDMABatchWrite, CmdDMARowWrite, initial program
+- [AB-DISASM](../appendices/bibliography.md#ab-disasm): ConfigVDPDMA, the RAM routine at `$FFF000`, BulkCopyVDP, SelectVDPInit, ConfigVDPColors, ConfigVDPScroll, DispatchVDPWrite, CmdWaitFrames, VInt_Sub1, VRAMBulkLoad, ControllerRead, CmdDMABatchWrite, CmdDMARowWrite, initial program
 - [AU-NOTES](../appendices/bibliography.md#au-notes): PORT_ARCHITECTURE.md §2 (bank 1, cartridge layout) and §2.1, `disasm/32x/dma_stub.asm`, `md_main.asm`, `definitions_32x.asm`
 - [VRD-NOTES](../appendices/bibliography.md#vrd-notes): analysis/VINT_HANDLER_ARCHITECTURE.md
+- [32X-ROMSET](../appendices/bibliography.md#32x-romset): Virtua Racing Deluxe, 68000 code at `$881D0C`-`$881DBC` and the DMA setup writes elsewhere in the first 256 KB
