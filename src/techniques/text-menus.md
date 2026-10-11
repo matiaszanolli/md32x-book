@@ -1,28 +1,19 @@
-# Text, menus and UI on tile planes
+# Text, menus and UI
 
 Text is cheap on the Mega Drive VDP. A character is a tile number in a name table, two bytes, and the VDP draws it every frame for nothing. On the 32X layer, text is pixels that a CPU has to write. The Mega Drive side is therefore the cheap default for a 32X game's text and menus: Star Wars Arcade and After Burner Complete keep their HUD there. Mortal Kombat II and Motocross Championship draw text on the 32X anyway, because it must sit inside 32X graphics or because the Mega Drive layer is unused ([What the shipped games put where](../patterns/layering.md#what-the-shipped-games-put-where)).
 
-This chapter shows both. Aerobiz Supersonic is a plain Mega Drive game, but it is the original that Aerobiz Ultimate was ported from ([the case study](../patterns/case-study-aerobiz.md)), and its text engine is a complete one for a menu-heavy game on tile planes. A 32X game's Mega Drive layer works the same way [AB-DISASM]. The 32X half covers the fonts of Mortal Kombat II and Aerobiz Ultimate.
+This chapter shows both. Aerobiz Supersonic is a plain Mega Drive game, but it is the original that Aerobiz Ultimate was ported from ([the case study](../patterns/case-study-aerobiz.md)), and its text engine is a complete one for a menu-heavy game on tile planes [AB-DISASM]. A 32X game's Mega Drive layer works the same way. The 32X half covers the fonts of Mortal Kombat II and Aerobiz Ultimate.
 
 ## Text on tile planes
 
-Some names in the disassembly describe something else. Where this chapter uses one of them, it is in this table:
-
-| Disassembly name | What the code does |
-|------------------|--------------------|
-| `FindCharInSet.asm`, `RenderTextBlock` | The file is named for its first routine, a delimiter lookup; `RenderTextBlock` is the text engine itself |
-| `RoundValue` | Builds a two-digit tile |
-| `ProcessTextControl` | Uploads tiles to VRAM through the game's command |
-| `ResourceLoad`, `ResourceUnload` | Fade out and fade in |
-
 ### A font is a run of tiles
 
-Load the font's tiles into VRAM in character order, and a character's tile number is its code minus the code of the first character in the font. Printing is writing those numbers into the plane's name table ([Name table entries](../megadrive/vdp-planes.md#name-table-entries)). The palette and priority bits of the entry choose the colour and whether the text sits in front of sprites. The [Mega Drive hello world](../howto/md-hello.md#printing) is the minimal version.
+Load the font's tiles into VRAM in character order, and a character's tile number is its code minus the code of the first character in the font. Printing is writing those numbers into the plane's name table ([Name table entries](../megadrive/vdp-planes.md#name-table-entries)). The palette and priority bits of the entry choose the colour and whether the text sits in front of low-priority sprites (see below). The [Mega Drive hello world](../howto/md-hello.md#printing) is the minimal version.
 
 Aerobiz Supersonic has two fonts, loaded together into one run of tiles by the graphics loader at `$03A7A0` [AB-DISASM, FindCharInSet.asm `RenderTextBlock`, LoadGameGraphics.asm]:
 
 - **8 × 8.** The name table entry is `$0404` + (character − 32). Tile `$404` is loaded separately and is the formula's slot for the space, which the engine never uses (a space is written as entry 0). Then come 90 glyphs at `$405-$45E` for `!` to `z`. Palette 0. There is no glyph for `{ | } ~`, and the code does not stop them printing: they would pick the first tiles of the 8 × 16 font.
-- **8 × 16.** Each character is two tiles, top half then bottom half in consecutive tiles: the entry is `$0404` + 2 × character + `$19`, with no 32 subtracted. The first glyph, `!` (character 33), is tile `$45F`, the one after the last 8 × 8 glyph. There are 100 glyphs, 200 tiles, `$45F-$526`. A space has no glyph: it is written as a blank entry. A line of this text is two rows tall but still one column per character.
+- **8 × 16.** Each character is two tiles, top half then bottom half in consecutive tiles: the entry is `$0404` + 2 × character + `$19`, with no 32 subtracted. The first glyph, `!` (character 33), is tile `$45F`, the one after the last 8 × 8 glyph. The loader's count is 100 glyphs, 200 tiles, `$45F-$526`. A space has no glyph: it is written as a blank entry. A line of this text is two rows tall but still one column per character. The glyphs from `{` upward are not what ASCII has there: the nine I decoded from the game's data are small pictograms, not braces, and I have not identified them. The hundredth entry decoded to 576 bytes instead of 64 and begins like the `{` glyph, so it may be padding or my decoder running past the end of its data; whether the font really has 100 glyphs or 99 is unsettled. The text routine prints codes up to `~` only, so everything past the first four of them (`{ | } ~`) can never be reached by it.
 
 Setting the priority bit adds `$8000` to the entry, giving `$8404`. The escape sequence ESC `P` `1` turns that on and any other value after ESC `P` turns it off. The bit puts the text in front of low-priority sprites. A high-priority sprite still covers it ([Priority](../megadrive/vdp-color.md#priority)).
 
@@ -33,16 +24,14 @@ The engine does not write characters to VRAM one at a time. It builds a whole li
 ### Word wrap and control codes
 
 - **Word wrap.** Before placing a word, the engine looks ahead to measure it against the window's right edge. If it will not fit, the line is sent and a new one started. A space that falls at the break is dropped.
-- **Control codes.** A byte `$1B` (ESC) starts a command. ESC `=` followed by two bytes sets the cursor's row and then its column, each stored plus 32 so that the bytes are printable characters. That is the cursor-addressing sequence of the ADM-3A terminal, row first, so the convention probably came from there. ESC `R` and ESC `E` set the window's left and right margins (after each line the cursor returns to the left margin). ESC `W` makes the text wait, through the game's frame-wait command. ESC `P` is the priority switch above. ESC `G` and ESC `M` set modes whose purpose I have not traced.
+- **Control codes.** A byte `$1B` (ESC) starts a command. ESC `=` followed by two bytes sets the cursor's row and then its column, each stored plus 32 so that the bytes are printable characters. That is the cursor-addressing sequence of the ADM-3A terminal, row first, so the convention probably came from there. ESC `R` and ESC `E` set the window's left and right margins (after each line the cursor returns to the left margin). ESC `W` makes the text wait, through the game's frame-wait command. ESC `P` is the priority switch above. ESC `G` and ESC `M` set modes whose purpose I have not traced. Storing positions as printable characters keeps every string in the game ordinary text, which a script or a translation tool can edit [AB-DISASM, FindCharInSet.asm `RenderTextBlock`].
 
-Sources: [AB-DISASM, FindCharInSet.asm `RenderTextBlock`]. Storing positions as printable characters keeps every string in the game ordinary text, which a script or a translation tool can edit.
+### The number formatter
 
-### A formatter that knows about tiles
-
-The game formats numbers and strings with its own small `printf`: `%d`, `%u`, `%x`, `%s` and `%c`, with field widths, precision, left alignment and zero padding. Two additions fit a tile screen [AB-DISASM, Vsprintf.asm, IntToDecimalStr.asm]:
+The game formats numbers and strings with its own small `printf`: `%d`, `%u`, `%x`, `%s` and `%c`, with field widths, precision, left alignment and zero padding. Two parts are unusual [AB-DISASM, Vsprintf.asm, IntToDecimalStr.asm]:
 
 - **Money without large multiplies.** A `$` flag writes a dollar sign before the number and "0K" after it. Money is stored in units of $10,000, so a stored 123 prints as `$1230K`, and the 68000 never multiplies a 32-bit value by 10,000. Two `$` flags leave out the "0K".
-- **A `W` conversion** prints an unsigned decimal like `%u`, but doubles the field width and the precision first, so `%4W` pads to eight characters. The disassembly's comment says this is for a font two tiles wide. That does not fit: the 8 × 16 font advances one column per character (the cursor moves by one in both fonts), and none of the format strings readable in the ROM uses `W`. Its purpose is unknown.
+- **A `W` conversion** prints an unsigned decimal like `%u`, but doubles the field width and the precision first, so `%4W` pads to eight characters. The disassembly's comment says this is for a font two tiles wide. That does not fit: the 8 × 16 font advances one column per character (the cursor moves by one in both fonts), and none of the format strings readable in the ROM uses `W`. Its purpose is unknown. One hypothesis, untested: the engine is shared with the Japanese release, where full-width characters would take two columns, and `W` is left over from that. If that ROM's strings use `W`, the comment was right about another build, and it is also the first place to look for the pictograms above.
 
 The decimal conversion is recursive: it prints the number divided by 10, then the last digit. That is short code, but each digit costs a stack frame: up to ten levels for a 32-bit value, 24 bytes each by my count (saved registers, return address, two arguments), so about 240 bytes. That matters if text can be printed from an interrupt.
 
@@ -71,13 +60,13 @@ Aerobiz's selection cursor is not a sprite. `PlaceCursor` writes a 2 × 2 block 
 
 ### Screen changes behind a fade
 
-Every Aerobiz screen is drawn behind a fade. Before drawing, a screen calls a routine that fades all 64 colours out in eight steps; after drawing, it calls the matching fade-in. Each routine checks a flag first and does nothing if the screen is already in that state. Screens that call other screens can therefore call the pair freely, with no double fades [AB-DISASM, ResourceLoad.asm, DrawLayersReverse]. The two routines are called from more than 200 places.
+Every Aerobiz screen is drawn behind a fade. Before drawing, a screen calls a routine that fades all 64 colours out in eight steps; after drawing, it calls the matching fade-in. Each of the two fade routines checks a flag first and does nothing if the screen is already in that state. Screens that call other screens can therefore call the pair freely, with no double fades. The two routines are called from more than 200 places. The eight steps themselves are a loop in `DrawLayersReverse`, which calls the game's palette-fade routine once per step [AB-DISASM, ResourceLoad.asm, DrawLayersReverse.asm].
 
 ## Text on the 32X layer
 
 Text drawn by the SH-2s costs a write per pixel, but it can be any size, any shape and any colour, and it sits inside the 32X picture instead of in front of or behind it.
 
-There are two frame buffers, and the display shows one while the CPUs draw into the other ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). Text drawn once is in one buffer only. It must be drawn into both, or redrawn every picture. That is the first thing that bites a 32X text screen, and the two games below solve it in opposite ways.
+There are two frame buffers, and the display shows one while the CPUs draw into the other ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). Text drawn once is in one buffer only. It must be drawn into both, or redrawn every frame. That is the first thing that bites a 32X text screen, and the two games below solve it in opposite ways.
 
 ### Mortal Kombat II: proportional fonts and a text list
 
@@ -85,8 +74,8 @@ Mortal Kombat II draws its 32X text on the Master [MK2, SH-2 code at `0x060011A8
 
 - **Three fonts** are unpacked from RNC-packed data into SDRAM when a screen starts, at `0x06036B2C`, `0x06037F60` and `0x06038F28`.
 - **Each glyph record** gives its width, height and the offset of its pixels, so the fonts are proportional.
-- **One font, any colour.** A glyph pixel of 1 is replaced by the requested colour when drawn. Pixels of 0 are written through the overwrite image, which skips them, so the background shows through without any test ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images)).
-- **What to print** arrives from the 68000 each frame as part of its state block: a list of 12 entries, each a message number and a position. Empty entries and entries below the screen are skipped ([Bulk data through the ports](../32x/communication.md#bulk-data-through-the-ports)). Because the list arrives and is drawn every frame, into whichever buffer is the back buffer, nothing is ever drawn twice.
+- **One font, any colour.** A glyph pixel of 1 is replaced by the requested colour when drawn. Pixels of 0 are skipped by the hardware, so the background shows through without any test. The routine writes one *byte* per pixel, to the overwrite image address; a byte of 0 is ignored in the normal image too, so for byte writes the overwrite image is not required. It is what lets a *word* write do the same ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images)).
+- **What to print** arrives from the 68000 each frame as part of its state block: a list of 12 entries, each a message number and a position. Empty entries and entries below the screen are skipped ([Bulk data through the ports](../32x/communication.md#bulk-data-through-the-ports)). Because the list arrives and is drawn every frame, into whichever buffer is the back buffer, nothing needs drawing twice.
 
 ### Aerobiz Ultimate: a text engine for the layer
 
@@ -94,8 +83,9 @@ Aerobiz Ultimate adds a text engine to the 32X layer for its new screens <span c
 
 - **Glyphs from a desktop font**, rendered by a build tool into 1-bit proportional glyphs, each with its width and pen advance, in two sizes.
 - **Measuring and wrapping on the SH-2**, by adding up advances from the table.
-- **Ink and paper in palette entries 254 and 255**, never 0. The engine writes bytes through the normal image, where a byte write of 0 is ignored ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images), [One palette, many users](../32x/compositing.md#one-palette-many-users)).
-- **A highlight that costs no drawing.** The New Game menu's cursor is a filled bar behind the selected entry, drawn in one palette index (33) while the other entries' bars use the background index. The pulse changes only entry 33's colour, every frame; no pixel is redrawn for it.
+- **Ink in palette entry 254, paper in 255**, never 0, so that no pixel the engine means to draw is a zero byte, which the normal image ignores ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images), [One palette, many users](../32x/compositing.md#one-palette-many-users)). Entry 255 is the paper of screens that fill their background with it, like the title screen; the New Game menu uses its own entries (1 for the background, 3 for the band, 33 for the highlight).
+- **No background of its own.** The glyph blitter writes single bytes, and only a glyph's set pixels, in ink. Text takes its background from whatever is underneath, such as a menu bar.
+- **A highlight that costs no drawing.** The New Game menu's cursor is a filled bar behind the selected entry, drawn in palette index 33 while the other entries' bars use the background index. The pulse changes only entry 33's colour, every frame; no pixel is redrawn for it.
 - **Moving the cursor does redraw.** The menu repaints a whole page: fill, bars, then the labels, because a bar is a filled rectangle and drawing it over a label erases the label. It does this twice, once per buffer: paint the back buffer, flip at vertical blank, paint the other.
 
 ### Which side for which text
@@ -111,20 +101,33 @@ Aerobiz Ultimate adds a text engine to the 32X layer for its new screens <span c
 
 - On tile planes, a character is a tile number: load the font in order and write name table entries.
 - Build each line in a buffer and send it as one rectangle, not a character at a time.
-- Put formatting where the screen needs it: field widths in tiles, money in the units the game stores.
+- Format in the units the game stores: Aerobiz keeps money in units of $10,000 and prints the trailing zeros as text.
 - Share a tile between two digits when space is tight; an offset read can do the shifting. Each built tile still needs a VRAM slot and an upload.
 - Draw screens behind guarded fades, so screens can be nested freely.
-- On the 32X, draw static text into both buffers or redraw it every picture; use the overwrite image for transparent glyph pixels, recolour one font at draw time, and keep text colours out of entry 0.
+- On the 32X, draw static text into both buffers or redraw it every frame; skip zero pixels with byte writes, or word writes through the overwrite image; recolour one font at draw time; and keep text colours out of entry 0.
 - A palette entry can animate a highlight for free, but changing which item is highlighted means redrawing it in both buffers.
 
 ## Open questions
 
 - How do the other retail 32X games divide their text between the two layers? Star Wars Arcade and After Burner Complete use Mega Drive tiles, Mortal Kombat II and Motocross Championship the 32X; Knuckles' Chaotix and the rest of the romset have not been checked.
-- What `W` in the format strings was for, and what the 33rd word of each line buffer is for.
+- What `W` in the format strings was for (the Japanese release is the place to test the full-width hypothesis), what the 33rd word of each line buffer is for, and what ESC `G` and ESC `M` do.
+- Whether a real console skips a zero byte written to the normal image. The manual says so, and this chapter repeats it ("for byte writes the overwrite image is not required"), but no console test confirms it and no game in this chapter depends on it: Mortal Kombat II writes through the overwrite image, and the Aerobiz Ultimate engine never writes a zero.
 - How Aerobiz Supersonic's menus erase and move the cursor, and how they read the pad.
+
+## Names in the disassembly
+
+Some names in the Aerobiz Supersonic disassembly describe something else:
+
+| Disassembly name | What the code does |
+|------------------|--------------------|
+| `FindCharInSet.asm`, `RenderTextBlock` | The file is named for its first routine, a delimiter lookup; `RenderTextBlock` is the text engine itself |
+| `RoundValue` | Builds a two-digit tile |
+| `ProcessTextControl` | Uploads tiles to VRAM through the game's command |
+| `ResourceLoad`, `ResourceUnload` | Fade out and fade in |
+| `DrawLayersReverse` | The eight-step loop that calls the palette-fade routine |
 
 ## Sources
 
-- [AB-DISASM](../appendices/bibliography.md#ab-disasm): FindCharInSet.asm (`RenderTextBlock`), RenderTextLine.asm, PrintfDirect.asm, Vsprintf.asm, IntToDecimalStr.asm, RoundValue.asm, LoadGameGraphics.asm, ProcessTextControl.asm, PlaceCursor.asm, ResourceLoad.asm, DrawLayersReverse
+- [AB-DISASM](../appendices/bibliography.md#ab-disasm): FindCharInSet.asm (`RenderTextBlock`), RenderTextLine.asm, PrintfDirect.asm, Vsprintf.asm, IntToDecimalStr.asm, RoundValue.asm, LoadGameGraphics.asm, ProcessTextControl.asm, PlaceCursor.asm, ResourceLoad.asm, DrawLayersReverse.asm
 - [MK2](../appendices/bibliography.md#mk2): SH-2 code at `0x060011A8`, `0x060016AC`, `0x0600122A`
 - [AU-NOTES](../appendices/bibliography.md#au-notes): ROADMAP U-090; tools/make_text_font.py; disasm/sh2/master/text.c (`menu_paint_page`, `menu_paint_both`, `menu_pulse`)

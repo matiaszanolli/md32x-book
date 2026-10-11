@@ -85,7 +85,7 @@
 - [Pseudo-3D roads and Mode 7](techniques/roads-mode7.md)
 - [Voxel landscapes](techniques/voxel.md)
 - [2D drawing and effects](techniques/2d-effects.md)
-- [Text, menus and UI on tile planes](techniques/text-menus.md)
+- [Text, menus and UI](techniques/text-menus.md)
 - [Compression and decompression](techniques/compression.md)
 - [Memory on a 256 KB machine](techniques/memory.md)
 - [Collision, physics and game logic](techniques/game-logic.md)
