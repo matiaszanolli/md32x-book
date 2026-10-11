@@ -149,3 +149,14 @@ over (count + 3) × 2 passes). Method 1 is the standard Huffman variant. On MK2 
 files (566,412 unpacked, 272,981 packed) come out at the header's size with a
 matching CRC-16. One `RNC\x01` hit at a false offset has impossible sizes and is
 skipped.
+
+## ProPack repacked with propack 0.2.0 (10 October 2026)
+
+`rnc_repack.py ROM PROPACK_DIR` (PyPI `propack` 0.2.0, pure Python, unzipped wheel; 80 files, about 4 minutes). Packed sizes are the header's packed-size field. All outputs round-trip with both `rnc_check.py`'s decoders and propack's.
+
+| Data | Unpacked | Original | propack m1 | propack m2 |
+|------|----------|----------|------------|------------|
+| 33 method-1 files | 566,412 | 272,981 (48.2%) | 291,292 (51.4%) | 299,979 (53.0%) |
+| 47 method-2 files | 1,139,686 | 405,109 (35.5%) | 417,318 (36.6%) | 434,698 (38.1%) |
+
+propack is 6.7% (m1) and 7.3% (m2) larger than the original packer in the same method. Method 1 over method 2: 2.9% smaller on the tiles, 4.0% on the SH-2 data (17,380 bytes). The header's byte 17 (chunk count) equals the chunks the method-2 decoder counts in all 47 files; byte 16 (leeway) is 2, 3 or 4 and is read by the 68000 unpacker at `$0292F4` (`move.b -2(a3),d0` with a3 at the packed data) to test whether the packed data overlaps its output.

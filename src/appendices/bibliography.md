@@ -158,6 +158,9 @@ haroldo-ok, *sega-32x-gamedev*, a Claude skill for building and testing 32X game
 ### D32XR
 Victor Luchits and contributors, *Doom 32X: Resurrection*, [github.com/viciious/d32xr](https://github.com/viciious/d32xr) (read at commit `957d3a8`, 1 October 2026). A Doom engine for the 32X, based on the Jaguar Doom source release and the Calico port. Threaded rendering on both SH-2s, hand-written SH-2 column and span drawers, a PWM mixer, VGM music on the 68000, RoQ video and save RAM support. Licences are mixed: the original Jaguar Doom code is under id Software's limited-use licence (`license.txt`), and some 32X-specific files, such as `marshw.c` and `sh2_mixer.s`, are MIT. The book describes its techniques in its own words and copies no code.
 
+### PROPACK-PY
+Gareth Davidson (bitplane.net), *propack*, "PRO-PACK implementation in Python", version 0.2.0 of 2 September 2026, [pypi.org/project/propack](https://pypi.org/project/propack/) and [github.com/bitplane/propack](https://github.com/bitplane/propack) (read 10 October 2026). A pure-Python packer and unpacker for Rob Northen's ProPack, methods 1 and 2, in the public domain (Unlicense). It is built on the decompiled ProPack source by lab313ru, [github.com/lab313ru/rnc_propack_source](https://github.com/lab313ru/rnc_propack_source), and its header parser gives the 18-byte RNC header: signature, method, unpacked and packed sizes, the two CRC-16s, leeway, chunk count. Its output is not the 1994 packer's: on Mortal Kombat II's own data it packs a little larger (see [ProPack on the 68000](../techniques/compression.md#propack-on-the-68000-mortal-kombat-ii)). The wheel was downloaded, not installed, its source read, and it was run from its unpacked folder.
+
 ## Forum reports
 
 Developers' accounts of their own tests, usually without a test ROM or the console's revision. Cited for what was observed and by whom, not as proof of what the hardware does.
@@ -286,3 +289,6 @@ Original research by the author: full disassemblies of commercial games that reb
 
 ### AU-NOTES
 *Aerobiz Ultimate*, a 32X remaster of *Aerobiz Supersonic* (Mega Drive) in progress, [github.com/matiaszanolli/aerobiz-ultimate](https://github.com/matiaszanolli/aerobiz-ultimate). Port architecture and memory map, one source tree that builds both the original Mega Drive ROM and the 32X cartridge, moving game logic to the SH-2s, the 32X bitmap layer behind Mega Drive planes, PWM audio, and a list of questions only real hardware can answer.
+
+### BOOK-TOOLS
+The scripts written for this book, in its repository, [github.com/matiaszanolli/md32x-book](https://github.com/matiaszanolli/md32x-book), under `notes/games/tools/` and `notes/games/mk2/`. Each states its use at the top and the tools folder's `README.md` lists them. They are working material and are not part of the published book. Cited as [BOOK-TOOLS, name]. Used by the chapters: `eccosim.py` and `ecco_cinepak.py` (the ECCO movie), `aerobiz_lzcheck.py` (Aerobiz's two LZ decoders), `rnc_check.py` and `rnc_repack.py` (Mortal Kombat II's ProPack files).

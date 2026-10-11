@@ -8,8 +8,8 @@ It is not a game but a video player, which makes it useful in a different way fr
 
 The program was read by disassembly from the cartridge dump, whose header checksum is zero (the boot ROM skips that check) [ECCO]. Two further checks make what it does certain, not just plausible:
 
-- **The decoder was run on the cartridge's own bytes.** A small SH-2 interpreter written for this book (`notes/games/tools/eccosim.py`) ran the frame walker, the codebook converter and the block loop over the 180 pictures. Its output equals what PicoDrive puts on the screen for every distinct picture of a 1,500-frame run, pixel for pixel: 676 pictures, none different <span class="tag emulator">emulator</span> [ECCO, headless run of 10 October 2026].
-- **An independent decoder agrees.** A second decoder, written from [Ferguson's stream description](../appendices/bibliography.md#cinepak-td) and reading only the stream (`notes/games/tools/ecco_cinepak.py`), gives the same 180 pictures bit for bit when it uses the colour conversion the SH-2 code uses.
+- **The decoder was run on the cartridge's own bytes.** A small SH-2 interpreter written for this book ran the frame walker, the codebook converter and the block loop over the 180 pictures. Its output equals what PicoDrive puts on the screen for every distinct picture of a 1,500-frame run, pixel for pixel: 676 pictures, none different <span class="tag emulator">emulator</span> [ECCO, headless run of 10 October 2026; BOOK-TOOLS, eccosim.py].
+- **An independent decoder agrees.** A second decoder, written from [Ferguson's stream description](../appendices/bibliography.md#cinepak-td) and reading only the stream, gives the same 180 pictures bit for bit when it uses the colour conversion the SH-2 code uses [BOOK-TOOLS, ecco_cinepak.py].
 
 Timings are the weak part. PicoDrive charges every SH-2 instruction its base clocks and nothing for memory ([In emulators](../sh2/pipeline.md#in-emulators)), so its run shows only that the demo keeps a steady rate. The instruction and memory-access counts below are exact, because the interpreter counted them. Turning them into clocks uses the manual's access costs and comes out as a range, tagged <span class="tag manual">manual</span>. No console has run the demo for this book. The cost estimate also assumes the SH-2 cache is on, as the boot ROM leaves it ([What the boot ROM leaves you](../sh2/cache.md#what-the-boot-rom-leaves-you)); PicoDrive's stand-in start never enables it. All figures are NTSC: 60 frames a second, 384,000 SH-2 clocks a frame.
 
@@ -111,7 +111,7 @@ What a picture costs, by the interpreter's count: the mean over pictures 1 to 17
 | Walker and chunk handler | 2,548 | 3,086 | 1% |
 | Total | 398,986 | 455,405 | |
 
-The clocks are the instruction counts at Hitachi's issue times, with no memory waits and no stalls [ECCO, run of `eccosim.py`]. That is the nearest to what PicoDrive charges: 455,000 clocks, 1.19 frames, which is why it shows two frames a picture. A console adds two things. A load whose result the next instruction uses costs one more clock ([Using a load's result too soon](../sh2/pipeline.md#using-a-loads-result-too-soon)), and 52,100 of a picture's loads are used at once, 31,100 of them in the block loop and 19,500 in the copy. And the memory costs something, for these accesses:
+The clocks are the instruction counts at Hitachi's issue times, with no memory waits and no stalls [ECCO; BOOK-TOOLS, eccosim.py]. That is the nearest to what PicoDrive charges: 455,000 clocks, 1.19 frames, which is why it shows two frames a picture. A console adds two things. A load whose result the next instruction uses costs one more clock ([Using a load's result too soon](../sh2/pipeline.md#using-a-loads-result-too-soon)), and 52,100 of a picture's loads are used at once, 31,100 of them in the block loop and 19,500 in the copy. And the memory costs something, for these accesses:
 
 | Access | Per picture | Cost per access, from the manual |
 |--------|-------------|----------------------------------|
@@ -120,7 +120,7 @@ The clocks are the instruction counts at Hitachi's issue times, with no memory w
 | Longword stores to the frame buffer | 19,456 (77,824 bytes) | Two word writes of 3 to 5 clocks |
 | Longword reads of the staging buffer | 19,456: 4,864 cache line fills | 12 clocks a fill |
 
-Sources: [ECCO, run of `eccosim.py`]; costs from [What a 16-bit bus costs](../sh2/bsc.md#what-a-16-bit-bus-costs) and [Writing from the SH-2](../32x/vdp.md#writing-from-the-sh-2). The codebook reads, about 20,500 longwords a picture, mostly hit the cache. The converter's stores go to memory without loading a line, so each of the codebook's 128 lines misses once, about 1,500 clocks, and stays: the stream is read cache-through and the stores load nothing, so nothing else the block loop does disturbs the cache.
+Sources: [ECCO; BOOK-TOOLS, eccosim.py]; costs from [What a 16-bit bus costs](../sh2/bsc.md#what-a-16-bit-bus-costs) and [Writing from the SH-2](../32x/vdp.md#writing-from-the-sh-2). The codebook reads, about 20,500 longwords a picture, mostly hit the cache. The converter's stores go to memory without loading a line, so each of the codebook's 128 lines misses once, about 1,500 clocks, and stays: the stream is read cache-through and the stores load nothing, so nothing else the block loop does disturbs the cache.
 
 Adding the extra clocks to the 455,405:
 
@@ -175,7 +175,8 @@ Each of these comes from the counts above and the manual's costs; none has been 
   - SH-2 code at `0x06000120`-`0x060001E2` (start-up and main loop), `0x06000220`-`0x06000272` (copy and flip), `0x060002B4`-`0x060003DA` and `0x060003EC`-`0x06000546` (block loops), `0x06000F5C`-`0x0600100E` (codebook conversion), `0x060010C4`-`0x0600137E` (strip and chunk handler, table at `0x060011A4`), `0x06001788`-`0x06001814` (walker), `0x06008120`-`0x0600812E` (Slave).
   - 68000 code at `$0820`-`$0858` and `$0868`-`$0956`.
   - The movie: header, sample table and all 180 samples parsed; V4 and V1 block counts; codebook sizes.
-  - A run of the decoder in an SH-2 interpreter (`notes/games/tools/eccosim.py`), compared with PicoDrive's screen over 1,500 frames, and with a second decoder (`notes/games/tools/ecco_cinepak.py`) and ffmpeg (10 October 2026).
+  - A run of the decoder in an SH-2 interpreter, compared with PicoDrive's screen over 1,500 frames, and with a second decoder and ffmpeg (10 October 2026).
+- [BOOK-TOOLS](../appendices/bibliography.md#book-tools): eccosim.py, ecco_cinepak.py.
 - [CINEPAK-TD](../appendices/bibliography.md#cinepak-td): chunk types, flag bits, block layout, colour conversion.
 - [SEGA-FILM](../appendices/bibliography.md#sega-film): container layout.
 - [FFMPEG](../appendices/bibliography.md#ffmpeg): reference decode.
