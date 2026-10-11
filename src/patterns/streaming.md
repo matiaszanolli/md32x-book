@@ -47,7 +47,7 @@ A big job done in one go stops everything else: the music stutters, input is mis
 - **Uploads in chunks.** Aerobiz Supersonic splits large tile sets into 4 KB DMA transfers with frame waits between them ([DMA in a real game](../megadrive/vdp-dma.md#dma-in-a-real-game)) [AB-DISASM, VRAMBulkLoad.asm].
 - **Slicing inside the interrupt.** Its vertical interrupt fills or reads back name table rectangles four rows at a time and keeps the running VDP command in RAM, so the next frame resumes where this one stopped ([Organising the frame](../megadrive/vdp-timing.md#organising-the-frame)) [AB-DISASM, VInt_Handler2.asm, VInt_Handler3.asm].
 - **Decompressors that can stop.** d32xr's LZSS decoder produces at most a requested number of bytes and saves its state, so a caller can take one picture line or one block of music at a time ([d32xr's LZSS](../techniques/compression.md#d32xrs-lzss-byte-aligned-and-resumable)) [D32XR, lzss.c].
-- **A faster CPU for the job.** Aerobiz Ultimate's largest decompression took 62 frames on the 68000 and about 4.4 on an SH-2 <span class="tag emulator">emulator</span> ([Moving decompression to an SH-2](../techniques/compression.md#moving-decompression-to-an-sh-2)) [AU-NOTES, ROADMAP.md U-046].
+- **A faster CPU for the job.** Aerobiz Ultimate's largest decompression took 62 frames on the 68000 and about 4.4 on an SH-2, about 7.5 with the copies at both ends <span class="tag emulator">emulator</span> ([Moving decompression to an SH-2](../techniques/compression.md#moving-decompression-to-an-sh-2)) [AU-NOTES, ROADMAP.md U-046].
 
 ## Rings between a producer and a consumer
 

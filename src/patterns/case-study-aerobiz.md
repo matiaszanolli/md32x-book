@@ -98,7 +98,7 @@ Ares found what PicoDrive had hidden. It maps the cartridge as the manual says, 
 The original plan put the AI and the economy on an SH-2, because the pause between turns felt slow. The profile above said there was nothing to gain: no AI or economy routine is in the top 25 [AU-NOTES, ROADMAP U-045]. Two more measurements decided how work should cross:
 
 - **A call costs more than most routines.** One round trip from the 68000 to the SH-2 and back through the communication ports costs about 560 68000 clocks, whatever the job. The first test subject, the game's 32-bit divide, works on the SH-2 and matches the original on every test value, but its slow path is never called in play, because the game never divides by `$10000` or more. Work has to be sent in batches, not call by call [AU-NOTES, ROADMAP U-039, U-044; PORT_ARCHITECTURE §4.2].
-- **The hot path moved.** LZ decompression now runs on the Master SH-2, about 14 times faster, and is in the shipping cartridge ([Moving decompression to an SH-2](../techniques/compression.md#moving-decompression-to-an-sh-2)). The longest screen-loading stall went from 74-76 frames to about 5 [AU-NOTES, ROADMAP U-046].
+- **The hot path moved.** LZ decompression now runs on the Master SH-2, 14 times faster for the decoding alone and about 8 times for a whole job, and is in the shipping cartridge ([Moving decompression to an SH-2](../techniques/compression.md#moving-decompression-to-an-sh-2)). The longest screen-loading stall went from 74-76 frames to about 8-10, by the project's own frame counts [AU-NOTES, ROADMAP U-046].
 
 Each moved routine keeps its 68000 version, chosen at assembly time, so the two can be compared, and a control build (`32x-nolz`) leaves decompression on the 68000.
 
