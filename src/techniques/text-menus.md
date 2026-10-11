@@ -66,7 +66,7 @@ Every Aerobiz screen is drawn behind a fade. Before drawing, a screen calls a ro
 
 Text drawn by the SH-2s costs a write per pixel, but it can be any size, any shape and any colour, and it sits inside the 32X picture instead of in front of or behind it.
 
-There are two frame buffers, and the display shows one while the CPUs draw into the other ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). Text drawn once is in one buffer only. It must be drawn into both, or redrawn every frame. That is the first thing that bites a 32X text screen, and the two games below solve it in opposite ways.
+There are two frame buffers, and the display shows one while the CPUs draw into the other ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). Text drawn once is in one buffer only. It must be drawn into both, or redrawn every picture. That is the first thing that bites a 32X text screen, and the two games below solve it in opposite ways.
 
 ### Mortal Kombat II: proportional fonts and a text list
 
@@ -104,7 +104,7 @@ Aerobiz Ultimate adds a text engine to the 32X layer for its new screens <span c
 - Format in the units the game stores: Aerobiz keeps money in units of $10,000 and prints the trailing zeros as text.
 - Share a tile between two digits when space is tight; an offset read can do the shifting. Each built tile still needs a VRAM slot and an upload.
 - Draw screens behind guarded fades, so screens can be nested freely.
-- On the 32X, draw static text into both buffers or redraw it every frame; skip zero pixels with byte writes, or word writes through the overwrite image; recolour one font at draw time; and keep text colours out of entry 0.
+- On the 32X, draw static text into both buffers or redraw it every picture; skip zero pixels with byte writes, or word writes through the overwrite image; recolour one font at draw time; and keep text colours out of entry 0.
 - A palette entry can animate a highlight for free, but changing which item is highlighted means redrawing it in both buffers.
 
 ## Open questions
