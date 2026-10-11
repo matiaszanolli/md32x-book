@@ -5,16 +5,16 @@ Two ways to draw a first-person world on a 32X appear in the book's sources:
 - **A grid raycaster**: the world is a grid of cells, and one ray per screen column finds the nearest wall. It is simple, and fast enough for a dungeon crawler at 30 pictures a second on one SH-2, in PicoDrive <span class="tag emulator">emulator</span>.
 - **Doom's BSP renderer**: the world is any arrangement of walls at any angle and floors at any height, sorted into a binary space partition. It is far more general and far more work. d32xr, a Doom engine for the 32X, runs it across both SH-2s.
 
-Most of this chapter follows d32xr's source, read at the commit given in the bibliography [D32XR]. The raycaster comes from a homebrew game described in S32X-SKILL, whose source was read too [NOUDAR-32X], measured in PicoDrive <span class="tag emulator">emulator</span>. Neither is a retail game; Sega's own *Doom* for the 32X is not among the book's sources.
+Most of this chapter follows d32xr's source, read at the commit given in the bibliography [D32XR]. The raycaster comes from a homebrew game described in S32X-SKILL, and the game's own source was read too [NOUDAR-32X]. Its figures were measured in PicoDrive <span class="tag emulator">emulator</span>. Neither is a retail game; Sega's own *Doom* for the 32X is not among the book's sources.
 
 ## What every first-person renderer does
 
 Both engines rest on one observation. Walls are vertical, so every pixel in one screen column of a wall is at the same distance from the viewer. Floors and ceilings are flat, so every pixel in one screen row of a floor is at the same distance. So:
 
-- **Walls are drawn as columns.** One divide per column gives the scale; then the texture is stepped down the column at a constant rate, with no division per pixel.
+- **Walls are drawn as columns.** One divide per column gives the scale; then the texture is stepped down the column at a constant rate, with no division per pixel. Real engines spend a few divides per column on set-up, but never one per pixel.
 - **Floors and ceilings are drawn as rows (spans).** One distance per row, then constant steps across it.
 
-All the expensive maths happens once per column or once per row. What is left per pixel is a texture read, a light look-up and a store. d32xr's wall-column loop does two pixels in 16 SH-2 instructions: for each pixel, it reads a texel, looks it up in the light table, stores it, steps the texture position, and steps the frame buffer pointer down one line [D32XR, sh2_draw.s `I_DrawColumnA`]. d32xr's default view is 320 × 180, 57,600 pixels [D32XR, r_main.c `viewports`, marssave.c], so even eight instructions a pixel come to about 460,000 a picture, more than the 384,000 clocks an SH-2 has in an NTSC frame, before any other work. That is why the tricks below are all about doing fewer pixels or cheaper ones.
+All the expensive maths happens once per column or once per row. What is left per pixel is a texture read, a light look-up and a store. d32xr's wall-column loop does two pixels in 16 SH-2 instructions: for each pixel, it reads a texel, looks it up in the light table, stores it, steps the texture position, and steps the frame buffer pointer down one line [D32XR, sh2_draw.s `I_DrawColumnA`]. By default d32xr draws a 320 × 180 view in high-resolution mode, low resolution being off: 57,600 pixels [D32XR, r_main.c `viewports`, marssave.c `ReadEEProm`]. Even at eight instructions a pixel that comes to about 460,000 a picture, more than the 384,000 clocks an SH-2 has in an NTSC frame, before any other work. The default detail level draws floors at half horizontal resolution ([Making it fast enough](#making-it-fast-enough)), which takes some of that back. That is why the tricks below are all about doing fewer pixels or cheaper ones.
 
 ## A grid raycaster
 
@@ -37,7 +37,7 @@ Darkening a pixel by arithmetic costs work per pixel. With 256 palette colours t
 
 d32xr also stores each table rotated and points into it 128 bytes from the start. The SH-2's byte load sign-extends, so texels 128 to 255 load as −128 to −1, and from a base 128 bytes in they reach the table's first 128 bytes. So the tables keep the entries for colours 128 to 255 first and those for 0 to 127 after them, where the non-negative texels reach. Every texel then lands on its own entry, and no instruction is needed to clear the sign. The low-resolution tables, whose entries are 2-byte pixel pairs, are rotated the same way and entered 256 bytes in [D32XR, r_data.c `R_InitColormaps`, marsdraw.c; content/files/colormap8, colormap_new].
 
-The tables also never produce colour 0. The high-resolution drawers store single bytes, and a byte write of 0 to the frame buffer is ignored ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images)). No entry in the 8-bit tables of the source tree is 0; colour 0 itself maps to 8. The low-resolution tables do hold zeros, but their drawers store whole words, which write both bytes [D32XR, content/files/colormap8, colormap8_new, colormap_new; sh2_draw.s, sh2_drawlow.s].
+The 8-bit tables also never produce colour 0. The high-resolution drawers store single bytes, and a byte write of 0 to the frame buffer is ignored ([The normal and overwrite images](../32x/vdp.md#the-normal-and-overwrite-images)). No entry in the 8-bit tables of the source tree is 0; colour 0 itself maps to 8. The low-resolution tables do hold zeros, but their drawers store whole words, which write both bytes [D32XR, content/files/colormap8, colormap8_new, colormap_new; sh2_draw.s, sh2_drawlow.s]. The 4-bit textures' own tables (below) are part of the game data, not the source tree, and were not checked.
 
 ## Doom's BSP renderer
 
@@ -122,14 +122,15 @@ The raycaster's figures come from PicoDrive, and neither engine has been timed o
 
 - **Frame buffer writes cost only their instructions** in upstream PicoDrive ([Access timing per CPU](../32x/timing.md#in-emulators)). The raycaster's two-by-two expand alone is 10,240 longword stores, 20,480 bus words, written back to back. On a console those cost 3 to 5 clocks a word, about 61,000 to 102,000 clocks a picture that the emulator does not charge: a sixth to a quarter of a frame, or 8 to 13% of the two frames a picture has at 30 a second.
 - **Frame buffer reads** cost 7 to 14 clocks on a console and nothing extra in PicoDrive, so the spectre effect is cheaper there than on the hardware.
-- **The divider answers at once** in PicoDrive ([Division unit](../sh2/divu.md#in-emulators)). The raycaster reads each quotient straight after starting the divide, so each of its four divides per column is up to 39 clocks dearer on a console. d32xr starts its divides early and reads them late, which saves time on a console and shows no gain in the emulator.
+- **The divider answers at once** in PicoDrive ([Division unit](../sh2/divu.md#in-emulators)). The raycaster reads each quotient straight after starting the divide, so each divide is up to 39 clocks dearer on a console. At four per column and one per floor row that is at least 550 divides a picture, about 21,000 clocks, 5% of a frame: well under the expand's uncharged cost above. d32xr starts its divides early and reads them late, for example each wall's scale step, started before the rest of the wall's set-up and read after it [D32XR, r_phase2.c `R_WallLatePrep`]. That saves time on a console and shows no gain in the emulator ([Timing](../sh2/divu.md#timing)).
 - **The raycaster's rate is the project's claim.** Its README gives 30 pictures a second; its own ROM test in PicoDrive only checks for at least 20 [NOUDAR-32X, README.md, tests/run_tests.py].
 
 ## What to take away
 
 - Draw walls as columns and floors as rows: all the division happens once per column or row, never per pixel.
 - Keep the per-pixel loop to a texel read, a light look-up and a store.
-- For grid worlds, a raycaster at reduced resolution with one divide per column is enough, and far simpler than a BSP.
+- For grid worlds, a raycaster at reduced resolution with a few divides per column is enough, and far simpler than a BSP.
+- Build the light tables for the hardware: stored rotated, so the SH-2's sign-extended byte loads index them directly, and free of colour 0, which a byte store to the frame buffer cannot write.
 - Do lighting and fog with the palette: darker copies of colours, or tables of them.
 - In a BSP renderer, walk front to back, keep a list of covered columns, and skip any subtree whose box falls entirely behind it.
 - Offer quality settings that cut pixels: fewer columns, cheaper floors, smaller textures.
