@@ -132,7 +132,7 @@ Aerobiz's animation code shows two more useful habits: its flight-path markers a
 ## Open questions
 
 - Confirm the sprite cache on a console for this book: build a second table, switch register 5 to it, and see which fields take effect. A developer's console test and the VDP documentation's author already say y and size stay and x and the attributes follow [GENDEV-SAT].
-- Does the status register's SOVR bit fire for sprites outside the visible area? (When it clears: on a status read, in every emulator checked; see [The status register](vdp-registers.md#the-status-register).)
+- Does the status register's SOVR bit fire for sprites outside the visible area? (When it clears: on a status read in Genesis Plus GX, ares and BlastEm, and in the console reports; MAME clears C at the start of each frame and never sets SOVR. See [The status register](vdp-registers.md#the-status-register).)
 - Does an overflow of the sprite count on the previous line, not only of the pixel budget, also make a mask effective on the next line? The author of the console tests had not confirmed it [GENDEV-MASK].
 - Run the masking conditions on a console for this book: a mask first on its line, behind a dummy sprite, and after an overflowing line.
 

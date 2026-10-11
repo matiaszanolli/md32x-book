@@ -6,7 +6,7 @@ On the 32X, the Mega Drive VDP's registers are unchanged. The 32X VDP has its ow
 
 ## All 24 registers
 
-The "Sega" column is the value Sega's initial program writes at power-on, so every game starts from it (see [the VDP overview](vdp.md#what-lives-where-in-vram)) [AB-DISASM, initial program at `$2A8`]. The initial program uses registers 19-23 to clear VRAM, so after it ends they hold whatever that fill left behind.
+The "Sega" column is the value Sega's initial program writes at power-on, so every game that uses Sega's standard start-up code starts from it (that code is in each cartridge, not in the console; see [the VDP overview](vdp.md#what-lives-where-in-vram)) [AB-DISASM, initial program at `$2A8`]. The initial program uses registers 19-23 to clear VRAM, so after it ends they hold whatever that fill left behind.
 
 | # | Name | Sega | Bits, 7 → 0 | Covered in |
 |---|------|------|-------------|------------|
@@ -42,6 +42,7 @@ A register word is `%10?r rrrr vvvv vvvv`. The VDP ignores bit 13, and writes to
 
 | Register | Bit | Name | 1 means | 0 means |
 |----------|-----|------|---------|---------|
+| 0 | 5 | — | The leftmost 8 pixels of every line show the backdrop colour (Master System feature; Genesis Plus GX) | Normal. Sega's manuals show it as 0 |
 | 0 | 4 | IE1 | Line interrupt on (68000 level 4) | Off |
 | 0 | 2 | — | Normal colours | Only the lowest bit of each colour component is used: 8 colours (GENVDP) |
 | 0 | 1 | M3 | H/V counter stops (latched) | H/V counter runs |
@@ -56,8 +57,9 @@ Sources: [MD-TO p.22; GENVDP §17]. Points that matter in practice:
 - **Turn DISP off for big uploads.** With the display off, every line is blank, and the CPU and DMA can reach the VDP's memories without the limits of the active display [GENVDP §17]. Turning it off for one frame shows a frame of backdrop colour, which is why games do it behind a fade.
 - **M1 must be 1 for DMA.** A DMA command with M1 = 0 does nothing, and some commercial games send them anyway [GENVDP §11]. Many games keep M1 at 0 and set it only around a transfer. Aerobiz does that in one write to register 1, which also turns the vertical interrupt (IE0) off for the duration, using its RAM copy of the register [AB-DISASM, ConfigVDPScroll.asm].
 - **M3 latches the H/V counter** when the external interrupt fires, for light guns. See [Timing, interrupts and counters](vdp-timing.md).
+- **Register 0 bit 5 blanks the left edge.** Genesis Plus GX fills the leftmost eight pixels of each line with the backdrop colour when the bit is set, in Mega Drive mode too, as the Master System VDP does <span class="tag emulator">emulator</span> [GPGX, core/vdp_render.c `render_line`]. ares stores the bit under the name `leftColumnBlank` [ARES, ares/md/vdp/io.cpp]; whether it uses it was not traced. Sega's manuals show the bit as 0 and GENVDP found no effect from bits 7 to 5 [GENVDP §17], so no console report was read for this book. Leave it at 0 unless you want those eight pixels blank.
 - **Bit 2 of register 0 should stay 1.** Sega's manuals simply show it as 1. GENVDP found that 0 limits the palette to eight colours, as on the Master System.
-- **Register 1 bit 7 must be 0, and bit 2 must be 1.** GENVDP describes bit 7 as a Master System leftover that turns every tile into a block of solid colour. With bit 2 at 0 the VDP drops into Master System mode, where none of the Mega Drive registers work [GENVDP §17].
+- **Register 1 bit 7 must be 0, and bit 2 must be 1.** GENVDP found that setting bit 7 puts the display in a state like one of the TMS9918's text modes: every 8 × 8 block is a solid colour from the palette, with no pattern data, while sprites seem to stay active [GENVDP §17]. ares names the bit as the VRAM mode: 1 selects the 128 KB VRAM layout of the Tera Drive, which reorders how addresses map to the memory, so on a console with 64 KB tiles and tables would be read from the wrong places <span class="tag emulator">emulator</span> [ARES, ares/md/vdp/io.cpp, memory.cpp, vdp.hpp]. The two fit each other, but no source checks that ares's reading is what a Mega Drive does. With bit 2 at 0 the VDP drops into Master System mode, where none of the Mega Drive registers work [GENVDP §17].
 
 ## Registers 11 and 12: mode set 3 and 4
 
@@ -74,9 +76,9 @@ Sources: [MD-TO p.24; MD-SWM §2.5]. The scroll and interlace modes are explaine
 
 **Set RS0 and RS1 to the same value.** Sega's manuals say so plainly [MD-TO p.24]. GENVDP tried the mixed settings: `01` gives a 40-column picture that is slightly distorted, and one unlicensed game uses it [GENVDP §17].
 
-**Why the mixed settings misbehave.** ares models the two bits as different things. RS1 sets the width: 40 columns, and a pixel clock of the master clock ÷ 4 instead of ÷ 5. RS0 switches the VDP to an external dot clock, its EDCLK input pin [GENVDP §18], for a stretch of slots in every line's horizontal blank. ares runs those slots at an uneven, slower rate (15 of every 17 at ÷ 5, the other 2 at ÷ 4) <span class="tag emulator">emulator</span> [ARES, ares/md/vdp/main.cpp, vdp.hpp]. In that model, RS1 without RS0 gives 40 columns with every line slightly short, which fits the distortion GENVDP saw. In that model, Sega's rule to set both bits together amounts to "use the external clock whenever the picture is 40 columns wide".
+**Why the mixed settings misbehave.** ares models the two bits as different things. RS1 sets the width: 40 columns, and a pixel clock of the master clock ÷ 8 (6.71 MHz) instead of ÷ 10 (5.37 MHz). RS0 switches the VDP to an external dot clock, its EDCLK input pin [GENVDP §18], for a stretch of slots in every line's horizontal blank. ares runs those slots at an uneven rate, 15 of every 17 steps at ÷ 10 and the other 2 at ÷ 8 (its source counts in half-pixel steps of 5 or 4 master clocks) <span class="tag emulator">emulator</span> [ARES, ares/md/vdp/main.cpp, vdp.hpp]. In that model, RS1 without RS0 gives 40 columns with every line slightly short, which fits the distortion GENVDP saw. In that model, Sega's rule to set both bits together amounts to "use the external clock whenever the picture is 40 columns wide".
 
-**Bits 4 to 6 of register 12.** GENVDP found that bits 4 and 6 do nothing visible, and that bit 5 changes the picture only in the way the mixed `01` setting does [GENVDP §17]. None of the emulators gives any of them an effect. ares stores them under the names `externalColorEnable`, `hsync` and `vsync`, and MAME calls bit 5 "special" and the other two unused [ARES, ares/md/vdp/io.cpp, vdp.hpp; MAME, src/devices/video/315_5313.cpp]. A 2009 description of the VDP's pins fits ares's names: the /VSync pin carries vertical sync "or the pixel clock", /HSync carries horizontal sync "or always 1", and /SPA/B flags whether each pixel comes from a plane or a sprite, "or always 1" [MDWIKI-PINOUT]. That would make the bits switch what three output pins carry, not what is drawn, and a frozen horizontal sync would also explain the distorted picture GENVDP saw with bit 5. No source says which bit chooses which, or how that was found. On a 32X they matter more than on a plain Mega Drive: the 32X takes the Mega Drive's /VSync and /HSync from the cartridge connector [32X-SVC §7-1]. Sega's start-up code writes `$81`, all three 0, in both the Mega Drive and the 32X initial programs, and no retail game read for this book sets them [AB-DISASM, initial program register table at `$0002A8`; SWA, initial program register table at `$0004D4`]. Leave them at 0.
+**Bits 4 to 6 of register 12.** GENVDP found that bits 4 and 6 do nothing visible, and that bit 5 changes the picture only in the way the mixed `01` setting does [GENVDP §17]. None of the emulators gives any of them an effect. ares stores bit 4 as `externalColorEnable`, bit 5 as `hsync` and bit 6 as `vsync`, and does nothing with them; MAME calls bit 5 "special" and the other two unused [ARES, ares/md/vdp/io.cpp, vdp.hpp; MAME, src/devices/video/315_5313.cpp]. A 2009 description of the VDP's pins fits ares's names: the /VSync pin carries vertical sync "or the pixel clock", /HSync carries horizontal sync "or always 1", and /SPA/B flags whether each pixel comes from a plane or a sprite, "or always 1" [MDWIKI-PINOUT]. That would make the bits switch what three output pins carry, not what is drawn, and a frozen horizontal sync would also explain the distorted picture GENVDP saw with bit 5. The pin description lists what each pin can carry but does not say which register bit selects which pin, and no source says how ares came by its names, so the order in the list above (colour input, then /HSync, then /VSync) is ares's assignment, which nothing read for this book confirms. On a 32X they matter more than on a plain Mega Drive: the 32X takes the Mega Drive's /VSync and /HSync from the cartridge connector [32X-SVC §7-1]. Sega's start-up code writes `$81`, all three 0, in both the Mega Drive and the 32X initial programs, and no retail game read for this book sets them [AB-DISASM, initial program register table at `$0002A8`; SWA, initial program register table at `$0004D4`]. Leave them at 0.
 
 **When changes take effect.** GENVDP reports that the interlace bits change only outside the active display, while every other bit in register 12 takes effect at once, even mid-line [GENVDP §17]. Changing screen width mid-frame is therefore possible, but it is not a documented feature.
 
@@ -87,7 +89,7 @@ After every read or write through the data port, the VDP adds register 15 to its
 - **Use 2 for ordinary copies.** VRAM, CRAM and VSRAM are all word-wide from the CPU's side.
 - **0 means no increment.** Every write lands on the same address [GENVDP §17]. That is occasionally useful and usually a bug.
 - **An odd address swaps bytes.** The increment includes address bit 0, so an odd increment, or an odd starting address, makes every other word go to VRAM with its bytes swapped [MD-SWM §2.6]. Sega's initial program sets 1 because a byte-wide VRAM fill needs it. Set 2 again before writing anything else [AB-DISASM, initial program].
-- **Use the increment to write a column.** To go down one column of a plane 64 tiles wide, each next entry is 128 bytes further on, so set `$80` and write one word per row. The same trick fills a column of the horizontal scroll table.
+- **Use the increment to write a column.** To go down one column of a plane 64 tiles wide, each next entry is 128 bytes further on, so set `$80` and write one word per row. In the horizontal scroll table each line's entry is 4 bytes, a word for plane A and then one for plane B, so an increment of 4 writes one plane's value for each successive line (start at the table's address for plane A, or 2 above it for plane B).
 - **DMA uses it too.** Every DMA moves its destination by register 15 after each unit, so a DMA can scatter data down a column the same way [MD-SWM §2.7].
 - **The address wraps.** Past `$FFFF` it goes back to 0 in VRAM. CRAM and VSRAM wrap past `$7F` [GENVDP §8-10].
 - **Interrupt handlers must put it back.** If a handler changes register 15 for its own copy, the main program's next write goes to the wrong place. This is one more reason to [keep copies of the registers](#keeping-a-copy-of-the-registers) and to keep all VDP work in one place.
@@ -125,14 +127,14 @@ Notes for using it:
 - **VB and HB follow the beam in real time.** Polling VB is a way to wait for vertical blank with interrupts off, and Sega suggests it where the vertical interrupt cannot be used <span class="tag manual">manual</span> [MD-TB, addendum 3 §4]. VB also reads 1 the whole time the display is switched off (register 1 bit 6 = 0), in all three emulators below <span class="tag emulator">emulator</span>.
 - **F stays set until the 68000 takes the vertical interrupt.** No manual says when F, SOVR and C clear. GENVDP found that reading the status does not clear F [GENVDP §6]. Genesis Plus GX, ares and BlastEm all clear it only when the 68000 accepts the level 6 interrupt with vertical interrupts enabled <span class="tag emulator">emulator</span> [GPGX, core/vdp_ctrl.c; ARES, ares/md/vdp/irq.cpp; BLASTEM, vdp.c]. So with vertical interrupts off, F reads 1 from the first vertical blank on and cannot mark each frame. Poll VB instead.
 - **Reading the status clears SOVR and C.** Two emulator authors report it from console tests: the collision flag is set while sprites are drawn and cleared as soon as the status is read, and both flags stay set until that read, through vertical blank [GENDEV-COLL]. They are set only while the display is on; whether turning the display off clears them was not tested. Genesis Plus GX, ares and BlastEm clear both on every status read <span class="tag emulator">emulator</span> [GPGX, core/vdp_ctrl.c `vdp_68k_ctrl_r`; ARES, ares/md/vdp/io.cpp `readControlPort`; BLASTEM, vdp.c `vdp_control_port_read`]. MAME does not: it clears C at the start of each frame and never sets SOVR [MAME, src/devices/video/315_5313.cpp]. ares, at the commit read, never sets SOVR either. Read the status once and keep the bits you need: a second read sees 0 until the next overflow or collision.
-- **Many emulators always report the FIFO as empty**, so code that waits for EMPT to clear may never stop under emulation and may behave differently on a console [GENVDP §6].
+- **EMPT and FULL are modelled now.** GENVDP warned in 2000 that many emulators always reported the FIFO as empty, so code that waited for EMPT to clear might never stop. The three emulators read for this book track the FIFO: Genesis Plus GX compares the cycle count with the read-out time of each of four entries, and ares and BlastEm keep the FIFO's fill state <span class="tag emulator">emulator</span> [GPGX, core/vdp_ctrl.c `vdp_68k_ctrl_r`; ARES, ares/md/vdp/io.cpp `readControlPort`; BLASTEM, vdp.c `vdp_status`]. Whether their timing matches a console was not checked, so do not depend on the exact cycle at which FULL clears [GENVDP §6].
 - **PAL** follows the console, not the 240-line setting. The manuals call it "PAL mode", and GENVDP wondered whether it follows the 240-line setting [GENVDP §6]. But the VDP has a PAL/NTSC select input pin [GENVDP §18], and Genesis Plus GX, ares and BlastEm all set the bit from the console's region and nothing else <span class="tag emulator">emulator</span> [GPGX, core/loadrom.c; ARES, ares/md/vdp/io.cpp; BLASTEM, vdp.c]. The version register at `$A10001` gives the same information and is the documented place to read it [MD-SWM §4.1].
 
 ## Keeping a copy of the registers
 
 Because the registers cannot be read, a game that wants to change one bit has to know the rest of the byte. The usual answer is a copy in RAM, updated by the same routine that writes the register.
 
-Aerobiz Supersonic does it in a few instructions. One routine sends every register word to the control port, then takes the register number from bits 14-8 of the word and stores the value at that offset in a 24-byte table at `$FFF010`. Code that needs one bit, such as the DMA and vertical interrupt enables in register 1 or the plane size in register 16, reads the table, changes the bit and writes the result through the same routine. A second routine reads a value back for the game's C code [AB-DISASM, CmdSetVDPReg.asm, CmdGetVDPReg.asm, ConfigVDPScroll.asm].
+Aerobiz Supersonic does it in a few instructions. One routine sends every register word to the control port, then takes the register number from bits 14-8 of the word and stores the value at that offset in a 24-byte table at `$FFF010`, the address the game keeps in A5 as the base of its work RAM. Code that needs one bit, such as the DMA and vertical interrupt enables in register 1 or the plane size in register 16, reads the table, changes the bit and writes the result through the same routine. A second routine reads a value back for the game's C code [AB-DISASM, CmdSetVDPReg.asm, CmdGetVDPReg.asm, ConfigVDPScroll.asm].
 
 ```asm
 ; d0.w = register word $8rvv; a5 = copy of registers 0-23 in RAM
@@ -140,19 +142,21 @@ SetVdpReg:
         move.w  d0,$C00004       ; to the VDP
         move.w  d0,d1
         lsr.w   #8,d1
-        andi.w  #$1F,d1          ; register number
+        andi.w  #$7F,d1          ; register number (the game masks bits 14-8)
         move.b  d0,(a5,d1.w)     ; and to the copy
         rts
 ```
 
-Two rules make the copy trustworthy. Every register write goes through this routine, including those in interrupt handlers, and nothing else writes the copy. A copy that drifts from the hardware is worse than none.
+The game's own routine masks with `$7F`, bits 14 to 8, as the listing shows, and does not check the result: a word with bit 13 set, which the VDP treats as the same register, or a register number above 23, which the VDP ignores, would store past the end of the 24-byte table. Its callers pass fixed register words, and whether any of them can pass a number above 23 was not audited. A routine of your own should mask with `$1F` and refuse numbers above 23, since the copy sits next to other variables.
+
+Three rules make the copy trustworthy. Every register write goes through this routine, including those in interrupt handlers, and nothing else writes the copy. A copy that drifts from the hardware is worse than none. And reading the copy, changing a bit and writing it back is not atomic: if an interrupt handler writes the same register between the read and the write, the main program's write undoes the handler's change. Mask interrupts around the sequence, or keep each register's writes on one side.
 
 ## Reading other people's code
 
 Disassembly comments are only as good as their author's reading of the VDP, so check constants yourself. Two names in the Aerobiz disassembly show why:
 
 - `CmdGetVDPStatus` reads `$C00008`, the H/V counter, not the status register [AB-DISASM, CmdGetVDPStatus.asm].
-- `ConfigVDPScroll` writes `$C0` to register 23 and sends a command with `$C0` in its low byte. That is a VRAM copy (DMA mode `11`, code bits CD5 and CD4 set), not a scroll setting [AB-DISASM, ConfigVDPScroll.asm].
+- `ConfigVDPScroll` writes `$C0` to register 23 and sends a command with `$C0` in its low byte. That is a VRAM copy (DMA mode `11`, code bits CD5 and CD4 set), not a scroll setting [AB-DISASM, ConfigVDPScroll.asm]. It is one of three separate routines that program the DMA registers: `ConfigVDPColors` writes `$80` to register 23, a fill, and `ConfigVDPDMA` programs the memory-to-VRAM transfers and is the one the 32X port hooks ([DMA](vdp-dma.md); [Hardware bugs](../32x/bugs.md#the-books-own-projects)). They are not renamed copies of each other [AB-DISASM, ConfigVDPColors.asm, ConfigVDPDMA.asm].
 
 A register word decodes the same way every time: the high byte minus `$80` is the register number and the low byte is the value. A command decodes with the table in [the overview](vdp.md#two-kinds-of-control-word).
 
@@ -161,8 +165,9 @@ A register word decodes the same way every time: the high byte minus `$80` is th
 | Register bits | Sega's manuals | GENVDP |
 |---------------|----------------|--------|
 | Reg 0 bit 2 | Always 1 | 0 limits the colours to 8 |
+| Reg 0 bit 5 | Always 0 | No effect (Genesis Plus GX: blanks the left 8 pixels) |
 | Reg 0 bit 0 | Always 0 | 1 turns off the display completely; unlike DISP, the backdrop is not shown either |
-| Reg 1 bit 7 | Always 0 | 1 selects a Master System text-like mode |
+| Reg 1 bit 7 | Always 0 | 1 gives a TMS9918-like display: every 8 × 8 block a solid colour, no pattern data (ares: the 128 KB VRAM layout) |
 | Reg 11 HSCR/LSCR `01` | Not allowed | Per-line scroll using only the first 8 lines' entries, repeated |
 | Reg 12 LSM `10` | Not allowed | Same as no interlace |
 | Reg 12 RS `01` / `10` | Not allowed | `01` = distorted 40 columns, `10` = invalid |
@@ -178,15 +183,15 @@ Two errors in the text copies used for this book should not be mistaken for hard
 ## Open questions
 
 - Does anything besides a status read clear SOVR and C, for example turning the display off? The console reports cover only the read and vertical blank, and name no console model.
-- Which of bits 4 to 6 of register 12 selects which pin function, and does a 32X lose sync when bit 5 or 6 is set? Only an oscilloscope on the /VSync, /HSync and /SPA/B pins, or a 32X under test, can tell.
+- Which of bits 4 to 6 of register 12 selects which pin function (ares's names give one mapping, which nothing confirms), and does a 32X lose sync when bit 5 or 6 is set? Only an oscilloscope on the /VSync, /HSync and /SPA/B pins, or a 32X under test, can tell.
 
 ## Sources
 
 - [MD-TO](../appendices/bibliography.md#md-to): pp.22-26 VDP registers (scan checked for registers 0-3)
 - [MD-SWM](../appendices/bibliography.md#md-swm): §2.4 status register, §2.5 registers, §2.6 auto-increment, §2.7 DMA
 - [GENVDP](../appendices/bibliography.md#genvdp): §6 status register, §7 ports, §8-11, §17 registers, §18 pinout
-- [GPGX](../appendices/bibliography.md#gpgx): core/vdp_ctrl.c (`vdp_68k_ctrl_r`, interrupt acknowledge), core/system.c, core/loadrom.c
-- [ARES](../appendices/bibliography.md#ares): ares/md/vdp/io.cpp (`readControlPort`, register 12), irq.cpp, main.cpp, vdp.hpp
+- [GPGX](../appendices/bibliography.md#gpgx): core/vdp_ctrl.c (`vdp_68k_ctrl_r`, interrupt acknowledge), core/vdp_render.c (left column blanking), core/system.c, core/loadrom.c
+- [ARES](../appendices/bibliography.md#ares): ares/md/vdp/io.cpp (`readControlPort`, registers 0, 1 and 12), irq.cpp, main.cpp, memory.cpp, vdp.hpp
 - [BLASTEM](../appendices/bibliography.md#blastem): vdp.c (`vdp_status`, `vdp_control_port_read`, interrupt acknowledge), vdp.h
 - [MD-TB](../appendices/bibliography.md#md-tb): addendum 3 §4
 - [GENDEV-COLL](../appendices/bibliography.md#gendev-coll): console tests of the collision and overflow flags
@@ -194,4 +199,4 @@ Two errors in the text copies used for this book should not be mistaken for hard
 - [MAME](../appendices/bibliography.md#mame): src/devices/video/315_5313.cpp (status read, register 12)
 - [32X-SVC](../appendices/bibliography.md#32x-svc): §7-1, the cartridge connector signals the 32X takes
 - [SWA](../appendices/bibliography.md#swa): 32X initial program register table at `$0004D4`
-- [AB-DISASM](../appendices/bibliography.md#ab-disasm): initial program register table, CmdSetVDPReg, CmdGetVDPReg, CmdGetVDPStatus, ConfigVDPScroll, WaitVDPAndWrite
+- [AB-DISASM](../appendices/bibliography.md#ab-disasm): initial program register table, CmdSetVDPReg, CmdGetVDPReg, CmdGetVDPStatus, ConfigVDPScroll, ConfigVDPColors, ConfigVDPDMA, WaitVDPAndWrite
