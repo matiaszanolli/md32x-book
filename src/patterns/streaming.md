@@ -11,11 +11,12 @@ The most each path can carry in one NTSC frame, if the CPU doing the work does n
 | Mega Drive VDP DMA, in vertical blank | Work RAM or cartridge → VRAM | About 7,400 bytes (40 columns) | The VDP; the 68000 is stopped while it runs |
 | The FIFO | 68000 → SDRAM or frame buffer | About 12,000-21,000 bytes | The 68000 writes every word; SH-2 DMA receives |
 | The communication ports | Either way | 16 bytes at a time, plus a handshake per batch | Both CPUs, at every step |
-| An SH-2 reading the cartridge, cached | Cartridge → SH-2 | About 45,000-94,000 bytes | One SH-2, sharing the bus |
+| The frame buffer as a mailbox | Either way | About 10 KB (4,900-5,800 words) at the 68000's 22-26 clocks a word | The 68000 copies every word; the SH-2 reads or writes at its own speed; each batch needs an FM handoff ([Frame buffer ownership](bus.md#sharing-without-colliding)) |
+| An SH-2 reading the cartridge, cached | Cartridge → SH-2 | About 45,000-96,000 bytes | One SH-2, sharing the bus |
 | An SH-2 writing the frame buffer | SH-2 → frame buffer | About 150,000-250,000 bytes | One SH-2 |
-| SH-2 DMA | Between SDRAM, the frame buffer and the cartridge | Bus speed, in 16-byte units from SDRAM | The DMA controller, cycle by cycle with the CPUs |
+| SH-2 DMA | Between SDRAM, the frame buffer and the cartridge | No figure: each 16 bytes from SDRAM cost one 12-clock burst read, plus the writes at the destination's price (3-5 clocks a frame buffer word); never measured | The DMA controller, cycle by cycle with the CPUs |
 
-These figures are the frame's clocks divided by the manual's cost per unit, not measurements <span class="tag manual">manual</span>. The sources: [How much fits in a frame](../megadrive/vdp-dma.md#how-much-fits-in-a-frame); [What it costs](../32x/fifo.md#what-it-costs); [Bulk data through the ports](../32x/communication.md#bulk-data-through-the-ports); [What a 16-bit bus costs](../sh2/bsc.md#what-a-16-bit-bus-costs), which gives 64-136 clocks per 16-byte line from the cartridge; [Moving data without paying twice](bus.md#moving-data-without-paying-twice), which gives 3-5 clocks per frame buffer word; [Sharing the bus](../sh2/dmac.md#sharing-the-bus).
+These figures are the frame's clocks divided by the manual's cost per unit, not measurements <span class="tag manual">manual</span>. The sources: [How much fits in a frame](../megadrive/vdp-dma.md#how-much-fits-in-a-frame); [What it costs](../32x/fifo.md#what-it-costs); [Bulk data through the ports](../32x/communication.md#bulk-data-through-the-ports); [What a 16-bit bus costs](../sh2/bsc.md#what-a-16-bit-bus-costs), which gives 64-136 clocks per 16-byte line from the cartridge; [Moving data without paying twice](bus.md#moving-data-without-paying-twice), which gives 3-5 clocks per frame buffer word; [Sharing the bus](../sh2/dmac.md#sharing-the-bus). The mailbox figure is a 68000 loop of `MOVE.W (A1)+,(A0)+` and `DBRA` at 22 clocks a word, 24-26 when it reads the frame buffer ([Moving decompression to an SH-2](../techniques/compression.md#moving-decompression-to-an-sh-2)). It carries data both ways, which the FIFO does not: Aerobiz Ultimate sends tile words to the SH-2 through it and takes decompressed data back ([Hooking the choke point](#hooking-the-choke-point)). The project's plan names the FIFO for 68000-to-SH-2 data, but its shipped code uses the mailbox. The sources do not say why; the likely reasons are that the FIFO carries data one way only, so it cannot return the decompressor's output, and that once the mailbox exists for that, sending tile words through it reuses one mechanism instead of adding a second. This is an inference.
 
 The table explains the shape of every program below. The SH-2s can reach the cartridge themselves, faster than anything the 68000 can hand them, so the 68000 should send *decisions*, not data. The Mega Drive VDP can take only a few kilobytes per frame, so Mega Drive graphics have to be loaded ahead of time or in slices.
 
@@ -28,9 +29,11 @@ The table explains the shape of every program below. The SH-2s can reach the car
 | Star Wars Arcade | Numbered commands through the ports | Its 2 KB on-chip drawing routine, copied from the cartridge ([Two-way mode](../sh2/cache.md#two-way-mode-2-kb-of-on-chip-ram)); the rest not traced |
 | Motocross Championship | Commands through the ports | Its whole SH-2 program, run in place from the cartridge ([Living with bus contention](bus.md#what-each-program-did)) |
 | ECCO CinePak demo | Nothing | The movie, read a byte at a time through the cache-through cartridge view ([Cache discipline](cache.md#data-from-outside); [case study](case-study-ecco.md)) |
+| Knuckles' Chaotix | Command lists of up to 1 KB for the Master, and a four-word message, through the FIFO ([Knuckles' Chaotix: command lists](../32x/fifo.md#knuckles-chaotix-command-lists)) | Not traced here |
+| Virtua Racing Deluxe | Render parameters through the FIFO: a block of 2,560 bytes (the retail cartridge sets a length of `$0500` words at `$8828C0`), and smaller transfers of 136, 56 and 130 bytes. Per picture, as the project describes the patched copy ([Virtua Racing Deluxe](../32x/fifo.md#agreeing-on-start-and-end)) | Not traced here |
 | d32xr | Nothing in its cartridge build; in its Mega-CD build, video chunks through the FIFO | Its whole data file, used in place in the cartridge, with textures copied into a cache when needed ([Leave it in the cartridge](../techniques/memory.md#leave-it-in-the-cartridge)) |
 
-Sources: [MK2; AB32X; SWA; MCX; ECCO; D32XR, as linked]. None of the four retail games arms the FIFO ([DREQ and the FIFO](../32x/fifo.md#agreeing-on-start-and-end)); Knuckles' Chaotix, the fifth read for this book, sends the Master its command lists through it ([Knuckles' Chaotix: command lists](../32x/fifo.md#knuckles-chaotix-command-lists)). Their 68000s send small amounts for every picture, and the SH-2s fetch the bulk themselves.
+Sources: [MK2; AB32X; SWA; MCX; CHAOTIX; VRD-NOTES; 32X-ROMSET; ECCO; D32XR, as linked]. Of the six retail games read for this book, four never arm the FIFO (Mortal Kombat II, After Burner Complete, Star Wars Arcade and Motocross Championship; [DREQ and the FIFO](../32x/fifo.md#agreeing-on-start-and-end)). Knuckles' Chaotix and Virtua Racing Deluxe are the two that do, and both send small blocks of commands or parameters, not bulk data. Their 68000s send small amounts for every picture, and the SH-2s fetch the bulk themselves.
 
 ## Drawing off screen and copying: Motocross Championship
 
@@ -38,7 +41,7 @@ Motocross Championship's menus and race screens use the 32X's direct-colour mode
 
 The copy is expensive. Each word takes a load, a store, a count, a test and a taken branch, about 7 to 9 clocks with the cache misses on the SDRAM side. That makes 450,000 to 580,000 clocks per picture, more than a whole frame of the Master's time <span class="tag manual">manual</span>. The game shows a new picture every four frames ([What the shipped games ran at](60fps.md#what-the-shipped-games-ran-at)), so the copy takes about a third of the Master's time for each picture.
 
-What the copy buys is not stated in the code. Drawing in SDRAM gives cached, burst-speed reads of the picture being drawn, and leaves the frame buffer free until the picture is finished. The cheaper way to get the second benefit is the 32X's own double buffering: draw into the back buffer and flip FS ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). A direct-colour picture fits in one frame buffer, so both buffers remain available.
+What the copy buys is not stated in the code. Drawing in SDRAM is the right placement for a picture that is read back while it is drawn, because the cache serves those reads at burst speed, and it leaves the frame buffer free until the picture is finished. Whether this game reads its picture back was not traced. The cheaper way to get the second benefit is the 32X's own double buffering: draw into the back buffer and flip FS ([Frame buffers and the FS bit](../32x/vdp.md#frame-buffers-and-the-fs-bit)). A direct-colour picture fits in one frame buffer, so both buffers remain available. The contention chapter lists the same game among its placements and calls the staging right in principle; the cost above is what it pays for a direct-colour picture ([Living with bus contention](bus.md#what-each-program-did)).
 
 ## Never stall a whole frame
 
@@ -51,14 +54,14 @@ A big job done in one go stops everything else: the music stutters, input is mis
 
 ## Rings between a producer and a consumer
 
-When one CPU produces data and another consumes it at its own pace, a ring buffer sits between them: the writer adds at one position, the reader takes from another, and each only waits when the ring is full or empty. Most of the programs here use one: After Burner Complete's 64-sample ring between its mixer and its PWM interrupt ([PWM audio](../32x/pwm.md#1-the-pwm-interrupt-star-wars-arcade)), d32xr's 32 KB ring of music between its decompressor and the Z80 ([d32xr](../megadrive/sound.md#d32xr-decompress-on-the-68000-replay-on-the-z80)), and d32xr's sound command ring between the two SH-2s ([Between the two SH-2s](../32x/communication.md#between-the-two-sh-2s)).
+When one CPU produces data and another consumes it at its own pace, a ring buffer sits between them: the writer adds at one position, the reader takes from another, and each only waits when the ring is full or empty. Most of the programs here use one: After Burner Complete's 64-sample ring between its mixer and its PWM interrupt ([PWM audio](../32x/pwm.md#1-the-pwm-interrupt-star-wars-arcade), where it is the second design of that section), d32xr's 32 KB ring of music between its decompressor and the Z80 ([d32xr](../megadrive/sound.md#d32xr-decompress-on-the-68000-replay-on-the-z80)), and d32xr's sound command ring between the two SH-2s ([Between the two SH-2s](../32x/communication.md#between-the-two-sh-2s)).
 
 A plain ring hands out data in two pieces when a block wraps past the end. That is awkward for a DMA transfer or a parser that wants one contiguous block. d32xr's video player uses a ring that never splits a block [D32XR, mars_newrb.c]:
 
 - **Reserve, then commit.** The writer asks for a block of a given size and gets a pointer to contiguous space, or nothing. It fills the space, by DMA or by hand, and then commits it. The reader does the same in reverse. Until a block is committed, the other side cannot see it.
 - **Wrap early.** If the space left before the end is too short, the writer records where the data stops and starts again at the beginning. The reader jumps back when it reaches that mark.
 - **Full or empty without a counter.** Positions run from 0 up to twice the size, and are brought back down only when both have passed the size. Equal positions mean empty; positions a whole size apart mean full.
-- **Shared safely.** The ring's header sits on its own 16-byte lines, and each operation purges three lines before reading them ([Keeping the views in step](../sh2/cache.md#keeping-the-views-in-step)). A test-and-set lock guards it, and a request that cannot be met waits 512 loop passes before returning, so a waiting CPU does not flood the bus.
+- **Shared safely.** The ring's header sits on its own 16-byte lines, and each operation purges three lines before reading them ([Keeping the views in step](../sh2/cache.md#keeping-the-views-in-step)). A test-and-set lock guards it, which the manual forbids on the 32X; d32xr uses it anyway ([discrepancy 12](../appendices/discrepancies.md); [Found later](../32x/bugs.md#found-later)). A request that cannot be met waits 512 loop passes before returning, so a waiting CPU does not flood the bus.
 
 ## Overlapping the transfer with the work
 
@@ -84,7 +87,7 @@ A port of an existing game has to catch data where the game moves it, not where 
 - Never let one transfer or one decompression take a whole frame. Chunk it, and make decoders resumable.
 - Put a ring between any producer and consumer that run at different paces. Give out contiguous blocks if DMA or a parser fills them.
 - Overlap transfers with work: DMA into the destination directly, and refill while you wait.
-- Copying a finished picture into the frame buffer can cost more than a frame. Flip FS instead where you can.
+- Copying a finished picture into the frame buffer can cost more than a frame at full size. Flip FS instead where you can. A staging buffer still pays when it is read back while it is built, or when the copy expands a smaller picture, as the raycaster that casts a quarter of its pixels does ([First-person](../techniques/first-person.md)).
 
 ## Open questions
 
@@ -95,6 +98,8 @@ A port of an existing game has to catch data where the game moves it, not where 
 ## Sources
 
 - [MCX](../appendices/bibliography.md#mcx): SH-2 code at `0x020295B0`-`0x020295CA`, `0x0202C140`-`0x0202C166`
+- [32X-ROMSET](../appendices/bibliography.md#32x-romset): Virtua Racing Deluxe, 68000 writes to the DREQ length register at `$8828C0`, `$88D952`, `$88F008`, `$88F086`, `$88F104`, `$88FB3C`, `$892B64`
+- [VRD-NOTES](../appendices/bibliography.md#vrd-notes), [CHAOTIX](../appendices/bibliography.md#chaotix): as linked
 - [MK2](../appendices/bibliography.md#mk2), [AB32X](../appendices/bibliography.md#ab32x), [SWA](../appendices/bibliography.md#swa), [ECCO](../appendices/bibliography.md#ecco): as linked
 - [D32XR](../appendices/bibliography.md#d32xr): lzss.c, mars_newrb.c, marsroq.c, src-md/scd_roq.c
 - [AB-DISASM](../appendices/bibliography.md#ab-disasm): VRAMBulkLoad.asm, VInt_Handler2.asm, VInt_Handler3.asm
