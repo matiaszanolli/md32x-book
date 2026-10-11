@@ -152,7 +152,7 @@ d32xr reproduces Doom's melt, where the old screen slides down in uneven columns
   3. A swap makes the Mega Drive side hold the new screen and the frame buffer the old one.
   4. Each step, for every column that uncovered a strip since the last step, the strip is fetched back from the Mega Drive side, and the rest of the old picture is shifted down in place, from the bottom up. That is up to 160 handoffs a step.
   The price is the Mega Drive layer: with VRAM full of screen columns it has nothing to show for the length of the wipe, with the 32X put in front, and afterwards the 68000 is told to initialise the VDP and VRAM again.
-- **Both SH-2s** take columns from a shared counter, under a `tas.b` lock ([Splitting work across three CPUs](../patterns/cpu-split.md#handing-work-across-without-waiting)).
+- **Both SH-2s** take columns from a shared counter, under a `tas.b` lock, which the manual forbids on the 32X ([discrepancy 12](../appendices/discrepancies.md); [Found later](../32x/bugs.md#found-later)) ([Splitting work across three CPUs](../patterns/cpu-split.md#handing-work-across-without-waiting)).
 
 ### Doom's fire
 

@@ -134,7 +134,7 @@ The d32xr Doom port shows one complete way to reach save RAM with the 32X on. It
 6. Write 2 to `$A130F1` to disable and write-protect save RAM again, then clear RV.
 7. Release the SH-2s and unmask interrupts.
 
-Taking the save RAM out of the map after each access means a stray write cannot reach it, and parking the SH-2s keeps them off the cartridge while RV is set. Sega's bulletin says RV does not matter to SRAM [32X-TI item 7]. d32xr sets it anyway, for the bank chip register writes if nothing else.
+Taking the save RAM out of the map after each access means a stray write cannot reach it, and parking the SH-2s keeps them off the cartridge while RV is set. Sega's bulletin says RV does not matter to SRAM, and must be 1 to read or write FRAM [32X-TI item 7]. d32xr sets it anyway, for the bank chip register writes if nothing else.
 
 *Knuckles' Chaotix*, the one shipped 32X game in the sources that saves, does the same with a whole save at a time [CHAOTIX, 68000 code at `$03E322`-`$03E4B8`]:
 
