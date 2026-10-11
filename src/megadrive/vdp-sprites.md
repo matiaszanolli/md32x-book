@@ -38,7 +38,7 @@ Positions are in a 512 × 512 space with the visible screen starting at (128, 12
 | 30 rows (PAL) | | 128-367 (`$80-$16F`) |
 | Interlace mode 2 | | 256 upwards (`$100-$2BF` or `$2DF`), with a 10-bit y |
 
-Source: [MD-SWM §2.10, display position]. The offset means a sprite can sit partly off the top or left edge without negative numbers. Aerobiz bakes it into its data: a sprite meant for screen position (x, y) is stored as (x + 128, y + 128) in ROM, and positions are then added as plain numbers [AB-DISASM, CmdUpdateSprites.asm].
+Source: [MD-SWM §2.10, display position]. The offset means a sprite can sit partly off the top or left edge without negative numbers. Aerobiz Supersonic, the Mega Drive game ("Aerobiz" in the rest of this chapter), bakes it into its data: a sprite meant for screen position (x, y) is stored as (x + 128, y + 128) in ROM, and positions are then added as plain numbers [AB-DISASM, CmdUpdateSprites.asm].
 
 ### Which tiles a sprite uses
 
@@ -66,11 +66,15 @@ Two ways to use the list:
 - **Keep it fixed and move unused sprites away.** Aerobiz links every entry to the next one (0 → 1 → 2 → … → 0), 64 or 80 depending on the screen width read from its copy of register 12. Its game code never touches a link: it only changes positions and tiles. Hiding a sprite means moving it to y = 0, far above the screen, as its blinking code does (below). The whole 512- or 640-byte table is then copied to VRAM by DMA in one go [AB-DISASM, InitSpriteLinks.asm, InitDisplayLayout.asm].
 - **Rebuild it every frame.** Link only the sprites in use, sorted front to back, and end the list after the last one. The VDP then reads fewer entries, and front-to-back order is whatever order you link them in. This suits games where sprites need sorting by depth.
 
-Either way, build the table in RAM and copy it by DMA during vertical blank. The table is only 640 bytes.
+Either way, build the table in RAM and copy it by DMA during vertical blank, because the VDP reads the table while it draws the picture and a copy made then can show a half-updated list. The table is only 640 bytes.
 
 ### Write the table where register 5 points
 
-The VDP keeps its own copy of part of the sprite table: for each entry, the first four bytes (y, size and link). PicoDrive models this copy, refreshing it only when the CPU or a DMA writes VRAM inside the table's current address range. Pointing register 5 at a second table that was built somewhere else then gives the old y, size and link values combined with the new table's tile and x values <span class="tag emulator">emulator</span> [PICODRIVE, pico/videoport.c]. Double-buffering the sprite table by switching register 5 is therefore unsafe. Keep one table address and write the new contents there.
+The VDP keeps its own copy of part of the sprite table: for each entry, the first four bytes (y, size and link). Console reports agree on how it behaves. The author of GENVDP described it in 2010: a write to VRAM, by the CPU or by DMA, that lands inside the table's address range is also stored in the copy; the VDP uses the copy for each sprite's y and size when it picks the sprites for a line, and reads x and the attribute word from VRAM at whatever address register 5 holds; changing register 5 neither clears nor reloads the copy. He lists y and size only; Sega's patent, as another emulator author read it, also holds the link, and the emulators keep all four bytes [GENDEV-SAT].
+
+A developer's own test on a console found that after he switched register 5 between four prepared tables, the new tables' x positions took effect and their y positions did not, until he wrote to VRAM [GENDEV-SAT]. Genesis Plus GX, ares and PicoDrive all model the copy the same way <span class="tag emulator">emulator</span> [GPGX, core/vdp_ctrl.c, vdp_render.c `parse_satb_m5`; ARES, ares/md/vdp/sprite.cpp `Sprite::write`; PICODRIVE, pico/videoport.c]. None of this was tested on a console for this book.
+
+Pointing register 5 at a second table that was built somewhere else therefore gives the old y, size and link values combined with the new table's tile and x values. Double-buffering the sprite table by switching register 5 is unsafe. Keep one table address and write the new contents there.
 
 ## Limits
 
@@ -85,21 +89,25 @@ The VDP gives up drawing sprites when it reaches any of these [MD-SWM §2.10, sp
 The per-line limits count sprites in list order, so the ones at the end of the list are the ones that disappear. Two consequences:
 
 - **Wide sprites hit the pixel limit first.** Ten 32-pixel-wide sprites on one line use the whole 320-pixel budget in 40-column mode, so an eleventh is not drawn even though only ten of twenty sprites have been used [MD-SWM §2.10]. A sprite that is only partly within the budget is cut off.
-- **Hide a sprite with y, not x.** A sprite moved off the left or right edge still occupies its lines, and still counts against both limits there [GENVDP §15]. Moving it above or below the screen (y below 128 or past the bottom) takes it off every visible line. Better still, leave it out of the list.
+- **Hide a sprite with y, not x.** A sprite moved off the left or right edge still occupies its lines, and still counts against both limits there [GENVDP §15]. Moving it clear of the screen takes it off every visible line, but the condition is on the whole sprite: it must end above the first line (y + height at or below 128; a sprite four tiles tall at y = 100 covers lines 100 to 131 and still shows and still counts) or start below the last. Aerobiz's y = 0 is safe for every size, which is why zero is the usual choice. Better still, leave it out of the list.
 
 When the line limit is exceeded, the status register's SOVR bit is set. When two sprites' visible pixels overlap, the C bit is set. Both are described in [Registers and access](vdp-registers.md#the-status-register). Neither says which sprites were involved, so games do their own collision tests in software.
 
 ### Flicker
 
-The standard answer to too many sprites on a line is to rotate the order of the list every frame. Each sprite then spends some frames near the front, and instead of always losing the same sprites the game flickers between them. Combined with the fixed-list method above, that means rotating which sprite is linked first.
+The standard answer to too many sprites on a line is to rotate the order of the list every frame. Each sprite then spends some frames near the front, and instead of always losing the same sprites the game flickers between them. The VDP always starts at table entry 0, and no register changes that, so with the fixed list above the links cannot rotate: what rotates is which object is written into which entry, with a different starting object each frame. With the rebuilt list it is the order in which the sprites are linked.
 
 Blinking on purpose is cheaper still. Aerobiz blinks a range of markers entirely in its vertical blank handler: every *n* frames it either restores their saved y positions or sets y = 0, then copies the table again. The game logic never sees it [AB-DISASM, DisplayUpdate.asm].
 
 ## Masking
 
-A sprite with x = 0 is special. On the lines it covers, it hides every sprite after it in the list. Sprites before it in the list are still drawn. Only its height matters: its width, tiles, palette and priority have no effect [MD-SWM §2.10, display position; GENVDP §15]. Games use it to cut a sprite off at a window or status bar: put an x = 0 sprite early in the list, as tall as the area to clear.
+A sprite with x = 0 is special: on the lines it covers, it can hide the sprites after it in the list. Sprites before it are still drawn. Sega's manual says only that an x of 0 is a special case to take care with [MD-SWM §2.10, display position]. GENVDP gives the simple rule: every sprite after it is hidden on the lines it covers, and only its height matters [GENVDP §15]. That rule is incomplete <span class="tag disputed">disputed</span> ([discrepancy 50](../appendices/discrepancies.md)). Console tests by the author of the Exodus emulator, posted in March 2009 and confirmed by the author of Fusion, found three conditions [GENDEV-MASK]:
 
-GENVDP describes a second rule. Once the VDP has met a sprite with x = 1 in a frame, a sprite at x = 0 masks only on lines where a sprite at x = 1 also appears. GENVDP knew of one game that uses it and was not sure of the details [GENVDP §15]. Avoid x = 0 and x = 1 for ordinary sprites; nothing is visible there anyway.
+- **The mask only works behind a sprite that is not at x = 0.** On a given line, at least one sprite earlier in the list must have a non-zero x. A mask that is the first sprite on its line is ignored, and so are two masks in a row at the start of the line.
+- **Unless the line before overflowed.** If the previous line ran out of its sprite pixel budget, a mask is effective on this line even as the first sprite, and it stays effective on each following line as long as the line before it overflowed too.
+- **A mask still costs its width.** It counts against the line's sprite and pixel limits like any sprite, and it does not stop the VDP reading the rest of the list: it only stops the pixels of the sprites after it from being shown. A line where every sprite is masked can still overflow.
+
+So the way to cut a sprite off at a window or status bar is a pair: first a sprite with any x other than 0 (x = 1 puts it off the left edge, so nothing shows, though it uses 8 to 32 pixels of the line's budget), then the x = 0 sprite, both tall enough to cover the lines to clear. The tests name Galaxy Force II as the game that relies on this pair, and Mickey Mania as the one that relies on the second and third conditions: its lines begin with several masks, which are ignored but still use up the pixel budget [GENDEV-MASK]. GENVDP's second rule, that a sprite at x = 1 switches the VDP into another masking mode for the rest of the frame, is a misreading of that pair: the tests found no mode switch, and any non-zero x does the same [GENDEV-MASK]. Genesis Plus GX and ares implement the first two conditions <span class="tag emulator">emulator</span> [GPGX, core/vdp_render.c `render_obj_m5`; ARES, ares/md/vdp/sprite.cpp `patternFetch`]. None of this was tested on a console for this book. Avoid x = 0 for ordinary sprites; nothing is visible there anyway.
 
 ## Moving sprites cheaply
 
@@ -117,19 +125,24 @@ Each entry is 8 bytes, two longwords, and the fields fall conveniently for the 6
         dbra    d1,.loop
 ```
 
-Adding to the long's high word changes y without disturbing the size and link word below it, as long as nothing overflows. Adding a word to the second long changes only x.
+Adding to the long's high word changes y without touching the size and link word below it, whatever the values: a carry out of the high word is dropped, so an out-of-range y only wraps. Adding a word to the second long changes only x, and a carry out of that word is dropped the same way.
 
-Aerobiz's animation code shows two more useful habits. Its flight-path markers do not move by adding a speed every frame. Instead it recomputes each position from the start point, the end point and a step count as a weighted average. Rounding errors therefore never build up, and no fixed-point state is needed [AB-DISASM, AnimateFlightPaths.asm, WeightedAverage.asm]. Its take-off and landing animations get acceleration and easing from integer division of the distance travelled (a step of distance ÷ 20 + 2, for example) instead of a velocity variable [AB-DISASM, DiagonalWipe.asm]. Both are covered in more depth in [Fixed-point arithmetic](../techniques/fixed-point.md).
+Aerobiz's animation code shows two more useful habits: its flight-path markers are recomputed from their end points each frame, and its screen wipe eases by dividing the distance covered, with no velocity variable. [Fixed-point arithmetic](../techniques/fixed-point.md#moving-things-without-a-velocity) explains both.
 
 ## Open questions
 
-- Confirm the sprite cache on a console: build a second table, switch register 5 to it, and see which fields take effect.
+- Confirm the sprite cache on a console for this book: build a second table, switch register 5 to it, and see which fields take effect. A developer's console test and the VDP documentation's author already say y and size stay and x and the attributes follow [GENDEV-SAT].
 - Does the status register's SOVR bit fire for sprites outside the visible area? (When it clears: on a status read, in every emulator checked; see [The status register](vdp-registers.md#the-status-register).)
-- Test GENVDP's second masking rule (x = 1) on a console.
+- Does an overflow of the sprite count on the previous line, not only of the pixel budget, also make a mask effective on the next line? The author of the console tests had not confirmed it [GENDEV-MASK].
+- Run the masking conditions on a console for this book: a mask first on its line, behind a dummy sprite, and after an overflowing line.
 
 ## Sources
 
 - [MD-SWM](../appendices/bibliography.md#md-swm): §2.10 sprites: attribute table, display position, size, pattern order, priority between sprites, display capacity
 - [GENVDP](../appendices/bibliography.md#genvdp): §15 sprites: table format, linking, coordinates, masking, limits
+- [GENDEV-SAT](../appendices/bibliography.md#gendev-sat): the sprite table's internal copy, tested on a console
+- [GENDEV-MASK](../appendices/bibliography.md#gendev-mask): console tests of sprite masking
+- [GPGX](../appendices/bibliography.md#gpgx): `core/vdp_render.c` (`render_obj_m5`, `parse_satb_m5`), `core/vdp_ctrl.c` (sprite table copy)
+- [ARES](../appendices/bibliography.md#ares): `ares/md/vdp/sprite.cpp`
 - [PICODRIVE](../appendices/bibliography.md#picodrive): `pico/videoport.c` (sprite table cache), `pico/draw.c` (link field)
 - [AB-DISASM](../appendices/bibliography.md#ab-disasm): InitSpriteLinks, InitDisplayLayout, CmdUpdateSprites, DisplayUpdate, AnimateFlightPaths, WeightedAverage, DiagonalWipe

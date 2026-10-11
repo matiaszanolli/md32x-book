@@ -69,6 +69,14 @@ The 68000's `DIVU` and `DIVS` divide 32 bits by 16 and give a 16-bit quotient an
 
 The signed version uses one `DIVS` when it can and otherwise divides the magnitudes and fixes the sign. In PicoDrive, the one-`DIVU` path costs about 289 cycles a call including the call itself, and the loop about 937 <span class="tag emulator">emulator</span>. Aerobiz Ultimate moved the loop to an SH-2, and then found it never runs: its call counter read 0 after 200,000 frames of play [AU-NOTES, ROADMAP.md U-044, U-045]. See [Finding the idle processor](../patterns/cpu-split.md#finding-the-idle-processor).
 
+## Moving things without a velocity
+
+Two habits from Aerobiz Supersonic's animation code, both on the 68000, both cheap enough for a handful of objects.
+
+**Recompute from the end points.** Adding a speed to a position every frame loses the fraction of every step unless the position carries extra bits, and the error builds up. Aerobiz's flight-path markers do not do that. Each frame, a marker's coordinate at step *k* is a weighted average of its start and end, `(end × k + start × (n − 1 − k)) / (n − 1)`, with the counter *k* kept in the marker's slot and *n* the number of steps. The weights always add up to *n* − 1, so every frame is within one unit of the true line, the last step lands exactly on the end point, and no fixed-point state is needed. The price is two multiplies and a divide for each coordinate each frame: the routine calls the game's 32-bit multiply twice and its 32-bit divide once, and returns 0 when both weights are 0. Four markers at two coordinates each is eight divides a frame. If many objects share one *n*, work out the reciprocal once ([Dividing](#dividing)) [AB-DISASM, disasm/modules/68k/graphics/AnimateFlightPaths.asm, math/WeightedAverage.asm].
+
+**Ease by dividing the distance.** Instead of a velocity variable that is raised and lowered, make the step a function of how far the motion has got. Aerobiz's diagonal screen wipe, a transition that grows a strip of tiles across the screen, advances by `covered / 20 + 2` pixels a step while the strip grows, so it starts slowly and speeds up, and by `(54 − covered) / 20 + 1` in the last part, so it slows toward the end of its 54-pixel span. The constant added keeps the step from reaching zero, so the loop always finishes. The disassembly's header calls the steps random; the routine calls no random-number function, and the step depends only on the position [AB-DISASM, disasm/modules/68k/graphics/DiagonalWipe.asm, math/SignedDiv.asm]. It is a screen transition, not a sprite animation, but the same arithmetic serves anything that moves.
+
 ## Angles
 
 ### Binary angles
@@ -162,6 +170,7 @@ PicoDrive returns a divide's result at once ([Division unit](../sh2/divu.md#in-e
 - Avoid divides in this order: constant as multiply, one divide per picture or slice, a reciprocal table. For the rest, use the divider when other work can overlap it or the quotient needs more than 16 bits, and `DIV1` steps when nothing can and 16 bits will do.
 - Make a turn a power of two, keep spare angle bits, and fold the sine table if memory is short or store it whole if speed is.
 - Interpolate tables only where the steps would show, and compute what you can when building.
+- Move things by recomputing a weighted average of the end points each frame, and ease them by dividing the distance covered, instead of adding speeds.
 - Use `int64_t`, not `long`, for products, and remember the divider is signed.
 
 ## Open questions
@@ -174,7 +183,7 @@ PicoDrive returns a divide's result at once ([Division unit](../sh2/divu.md#in-e
 - [D32XR](../appendices/bibliography.md#d32xr): doomdef.h, r_local.h, tables.c, sh2_fixed.s, jagonly.c, r_main.c, r_phase1.c, r_phase2.c, r_phase3.c, r_phase6.c, r_phase7.c, p_maputl.c, p_enemy.c, marssound.c; commit `e0b4409`
 - [S32X-SKILL](../appendices/bibliography.md#s32x-skill): assets/3d/r3d.h, r3d.c, gen_tables.py; references/optimization.md, testing.md, architecture.md, voxel-landscape.md, toolchain-and-build.md
 - [SWA](../appendices/bibliography.md#swa): SH-2 code at `0x06000EFE`, `0x06002B7C`-`0x06002BD6`; table at `0x0600348C`
-- [AB-DISASM](../appendices/bibliography.md#ab-disasm): disasm/modules/68k/math/Multiply32.asm, UnsignedDivide.asm, SignedDiv.asm, RandRange.asm
+- [AB-DISASM](../appendices/bibliography.md#ab-disasm): disasm/modules/68k/math/Multiply32.asm, UnsignedDivide.asm, SignedDiv.asm, WeightedAverage.asm, RandRange.asm; graphics/AnimateFlightPaths.asm, DiagonalWipe.asm
 - [AU-NOTES](../appendices/bibliography.md#au-notes): disasm/sh2/master/fb.c, text.c, Makefile; ROADMAP.md U-032, U-044, U-045
 - [VRD-NOTES](../appendices/bibliography.md#vrd-notes): the project's copy of the game's 68000 code (disasm/modules/68k/game/physics/sine_cosine_quadrant_lookup.asm, speed_interpolation.asm, physics_integration.asm, math/atan2_calc.asm); the sine table at cartridge `$130000` in the project's ROM copy; PHYSICS_SYSTEM_ARCHITECTURE.md; OPTIMIZATION_PLAN.md QW-5
 - [MARSDEV](../appendices/bibliography.md#marsdev): examples/32x-skeleton/sh_src/mars_start.s
