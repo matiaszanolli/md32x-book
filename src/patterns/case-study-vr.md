@@ -18,7 +18,7 @@ So everything below is the project's account, tagged <span class="tag emulator">
 
 | CPU | Job, by the project's account |
 |-----|-------------------------------|
-| 68000 | Game logic, physics, AI, collision, the camera, depth sorting; the sound sequencer, which writes the FM and PSG chips itself while the Z80 plays only samples; the Mega Drive VDP, which draws the race HUD; and every command to the SH-2s |
+| 68000 | Game logic, physics, AI, collision, the camera, depth sorting; the sound sequencer, which writes the FM and PSG chips itself while the Z80 plays only samples; the Mega Drive VDP, which in the retail cartridge draws only the sky and scenery behind the 32X picture, not the HUD, as the project says ([Mixing 32X and Mega Drive graphics](../32x/compositing.md#mega-drive-behind-32x-objects-over-a-tile-background), [discrepancy 53](../appendices/discrepancies.md)); and every command to the SH-2s |
 | Master SH-2 | A command loop: polls a communication port, looks the command up in a 16-entry table at `0x06000780`, and runs it. Commands include block copies, scene set-up, a 56 KB bulk copy of track data, and the scene and render handlers run once per picture |
 | Slave SH-2 | A second command loop with its own table at `0x060005C8`, polling a different port, with a 64-pass delay between polls. Rendering handlers, and a 1,748-byte routine in on-chip RAM that processes the cars and objects |
 
