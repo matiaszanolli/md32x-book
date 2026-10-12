@@ -118,19 +118,24 @@ Sega's start-up sample sets up the Master's port and leaves the Slave's alone [3
 | 3 | SCR = `$00` | Internal clock, output on SCK; everything off |
 | 4 | Delay loop, 4 × 74 passes | About 1,480 clocks, more than one bit time (1,200 clocks) |
 | 5 | SCR = `$20` | Transmitter on |
-| 6 | SSR = `$00` | |
+| 6 | SSR = `$00` | A write of 0 to the status flags, with no read of SSR before it (see below) |
 
-This follows Hitachi's setup steps exactly, but the sample never sends a byte, and the Slave's receiver stays off. Sega does not say why the code is there. One plausible reason is to make the Master drive the shared clock line (idle high) rather than leave it floating between two inputs. The text transcription of this sample has the delay count as `#4+74`; the scan has `#4*74`.
+Steps 1 to 5 follow Hitachi's setup steps exactly. Step 6 is the interesting one, and what it does depends on the rule for SSR's flags. The manual says a flag clears only if it was read while it was 1 and 0 is then written to it [SH7604 §13.2.7 p.342]. The sample writes `$00` to SSR with no read before it. By that rule the write changes nothing: TDRE stays 1, no byte is waiting, and the sample never sends one. If the write did clear TDRE, the SCI would take TDR as waiting data. The sample never writes TDR, so that would be its reset value `$FF`, and with the transmitter on the Master would send it, eight clock pulses on SCK and eight 1 bits on its transmit line. So the sample sends no byte or one byte, depending on whether the hardware holds to the manual's rule, and the Slave's receiver stays off either way. Sega does not say why the code is there. One plausible reason is to make the Master drive the shared clock line (idle high) rather than leave it floating between two inputs. PicoDrive clears TDRE on any write of 0, with no read first, but it passes a byte on only to a receiver that is switched on, so with the Slave's receiver off it shows nothing either way <span class="tag emulator">emulator</span> [PICODRIVE, pico/32x/sh2soc.c, `sci_trigger`]. The text transcription of this sample has the delay count as `#4+74`; the scan has `#4*74`.
 
 Star Wars Arcade does not touch the SCI registers anywhere in its SH-2 program [SWA, SH-2 program], and neither does After Burner Complete [AB32X, SH-2 program]. Neither does d32xr, marsdev or Aerobiz Ultimate. The names `sci_cmd_cb` and `sci_mars_adapter` in d32xr and marsdev belong to the Slave's command interrupt, not the serial port [D32XR, marshw.c; MARSDEV, examples/32x-old-skel/boot.s]. Mortal Kombat II copies Sega's start-up sample almost word for word but leaves the serial set-up out [MK2, SH-2 code at `0x06000250`-`0x060002B8`].
 
 ## A doorbell between the SH-2s
 
-The 32X's own interrupts (VRES, V, H, CMD, PWM) all come from the 32X hardware or the 68000. CMD in particular can only be raised by the 68000 (see [Communication](../32x/communication.md)). So the SCI's receive interrupt is the only direct way we know for one SH-2 to interrupt the other:
+The 32X's own interrupts (VRES, V, H, CMD, PWM) all come from the 32X hardware or the 68000. CMD in particular can only be raised by the 68000 (see [Communication](../32x/communication.md)). So the SCI's receive interrupt is the only direct way, in the sources read for this book, for one SH-2 to interrupt the other:
 
-1. On both SH-2s: set the same asynchronous format and rate, for example SMR = `$00` and BRR = 0, then wait a bit time and turn on TE and RE. On the side that should be woken, also set RIE, give the SCI a priority in IPRB and a receive vector in VCRA.
+1. On both SH-2s: set the same asynchronous format and rate, for example SMR = `$00` and BRR = 0, then wait a bit time and turn on TE and RE. On the side that should be woken, also set RIE, give the SCI a priority in IPRB and a receive vector in VCRA, choosing both to suit the program's interrupt dispatcher (below).
 2. To ring: wait for TDRE = 1, write a byte to TDR, clear TDRE. The byte can carry a command number.
 3. In the other SH-2's receive handler: read RDR, clear RDRF (and any error flag), and act on the command. Real work data still goes through SDRAM or the communication ports.
+
+**Level and vector.** The programs that follow Sega's sample send their interrupts through one entry routine per CPU that picks the handler from the level in SR, and they give levels 6 to 15 to the 32X's interrupts and their odd neighbours, because the interrupt flaw can deliver the wrong vector and Sega's sample points neighbouring levels at one handler ([Interrupt controller](intc.md#segas-rules-the-sh-2-interrupt-flaw)). An SCI interrupt at one of those levels would be run as a 32X interrupt. Levels 2 to 5 are free of the 32X's interrupts, which start at level 6, but they are only two table entries, 2-3 and 4-5, because of the pairing below; level 1 can be taken only with the mask at 0, and d32xr's table returns from it at once. The flaw concerns external interrupts, so the SCI's on-chip interrupt is presumably not affected by it, but the manuals do not say. Three things have to match the dispatcher:
+- The level decides which table entry runs, whatever vector the SCI uses. In d32xr and Star Wars Arcade a level pair shares one entry, as Sega's own pairing of 8 with 9 does, so pick a level whose entry no other handler uses. d32xr uses 2 for its watchdog and 4 for a DMA channel, which takes both entries, so a program built like it has no free one: the SCI would have to share an entry with a handler that tells the two causes apart, or the program would give up the pairing at that level. Star Wars Arcade uses 5 for its Slave's watchdog, so at most the 2-3 entry is left there ([Handlers in practice](intc.md#handlers-in-practice)).
+- The vector put in VCRA must itself lead to the entry routine. Star Wars Arcade points its watchdog vector, 72, at the same routine as the external vectors.
+- The table entry must be a real handler that clears RDRF. An unused level in these programs goes to a bare `rts` (Star Wars Arcade) or to a loop that never returns (After Burner Complete's Slave), and an uncleared RXI request would then be taken again at once.
 
 At the fastest asynchronous rate each bit takes 128 CPU clocks, so a 10-bit frame takes 1,280 clocks, about 56 µs, before the other side's interrupt fires. Allow for that delay. This scheme is a suggestion worked out from the manual. No program in the sources does it, and it has not been tried on a console.
 
@@ -138,12 +143,13 @@ At the fastest asynchronous rate each bit takes 128 CPU clocks, so a 10-bit fram
 
 - **PicoDrive and Ares** both connect the two SH-2s' ports. When the sender's transmitter is on, its TDRE is cleared and the receiver's RE is set, the byte appears in the other SH-2's RDR at once, RDRF is set, and the interrupts fire if enabled <span class="tag emulator">emulator</span> [PICODRIVE, pico/32x/sh2soc.c; ARES, component/processor/sh2/sh7604/serial.cpp, md/m32x/m32x.cpp].
 - Neither models the bit rate, the mode, the clock line, or overrun: a second byte simply replaces an unread one, with no ORER. Code that works in either can still lose bytes or run too fast on a console.
+- PicoDrive clears TDRE whenever 0 is written to SSR, without requiring the read the manual asks for [PICODRIVE, pico/32x/sh2soc.c].
 - PicoDrive does not raise TEI, and it takes the transmit interrupt's priority and vector from the other SH-2's registers instead of the sender's [PICODRIVE, pico/32x/sh2soc.c].
 
 ## Open questions
 
 - Is each SH-2's transmit line wired to the other's receive line, as assumed here? Is there a pull-up on the shared clock line?
-- Why does Sega's sample enable the Master's transmitter? Does the Slave's SCK need the Master to drive it?
+- Why does Sega's sample enable the Master's transmitter? Does the Slave's SCK need the Master to drive it? Does the sample's write of 0 to SSR, with no read first, clear TDRE on a console, so that the Master sends `$FF` once, or does it do nothing, as the manual's rule implies?
 - Does a byte sent between the two SH-2s arrive reliably at the fastest asynchronous and clocked rates on a console?
 
 ## Sources

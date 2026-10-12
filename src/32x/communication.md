@@ -12,7 +12,7 @@ The 68000 and the two SH-2s have no memory in common. The 68000 cannot see the S
 | Frame buffer | Whoever holds FM | Either way, one side at a time | 128 KB: the one of the two banks that is not on screen. The 68000 moves about 10 KB a frame into it ([Moving data](../patterns/streaming.md)) | Bulk data, especially results going back to the 68000 |
 | Cartridge ROM | All three | Read only | Up to 4 MB. The SH-2s see all of it; the 68000 sees a 512 KB fixed window and one 1 MB bank at a time ([the 68000's map](architecture.md#the-68000-memory-map)) | Shared constant data |
 | SDRAM | Both SH-2s | Any | 256 KB | Everything between the two SH-2s |
-| Serial link (SCI) | Master ↔ Slave | Either way | Bytes | Rarely used; see [below](#between-the-two-sh-2s) |
+| Serial link (SCI) | Master ↔ Slave | Either way | Bytes | Not used by any program read for this book; see [Serial port](../sh2/sci.md) and [below](#between-the-two-sh-2s) |
 
 There is no interrupt from an SH-2 to the 68000 <span class="tag manual">manual</span> [32X-HWM §3.3 p.67]. Anything an SH-2 wants the 68000 to know, the 68000 has to find by reading.
 
