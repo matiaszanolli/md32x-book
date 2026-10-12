@@ -9,8 +9,8 @@ The 68000 and the two SH-2s have no memory in common. The 68000 cannot see the S
 | Communication ports, `$A15120-$A1512F` | 68000, both SH-2s (and the Z80, see below) | Any | 8 words | Commands, small arguments, status, handshakes |
 | CMD interrupt, `$A15102` | 68000 → Master and/or Slave | One way | 1 bit per SH-2 | Waking or stopping an SH-2 without it polling |
 | DREQ FIFO | 68000 → SH-2 DMA channel 0 | One way | Any length | Bulk data from the Mega Drive side. See [DREQ and the FIFO](fifo.md) |
-| Frame buffer | Whoever holds FM | Either way, one side at a time | 128 KB | Bulk data, especially results going back to the 68000 |
-| Cartridge ROM | All three | Read only | Up to 4 MB | Shared constant data |
+| Frame buffer | Whoever holds FM | Either way, one side at a time | 128 KB: the one of the two banks that is not on screen. The 68000 moves about 10 KB a frame into it ([Moving data](../patterns/streaming.md)) | Bulk data, especially results going back to the 68000 |
+| Cartridge ROM | All three | Read only | Up to 4 MB. The SH-2s see all of it; the 68000 sees a 512 KB fixed window and one 1 MB bank at a time ([the 68000's map](architecture.md#the-68000-memory-map)) | Shared constant data |
 | SDRAM | Both SH-2s | Any | 256 KB | Everything between the two SH-2s |
 | Serial link (SCI) | Master ↔ Slave | Either way | Bytes | Rarely used; see [below](#between-the-two-sh-2s) |
 
@@ -65,7 +65,7 @@ The next sentence in the English manual says that dividing the registers into SH
 
 Three rules cover it:
 
-1. **One writer at a time per word.** Either a word always has the same writer (status the SH-2 posts, a state the 68000 sets), or ownership passes with its value. A command word is written by the 68000 only while it reads 0, and by the SH-2 only while it is not 0. VRD's notes describe this as "the 68000 sets, the SH-2 clears" [VRD-NOTES, analysis/COMM_REGISTERS_HARDWARE_ANALYSIS.md].
+1. **One writer at a time per word.** Either a word always has the same writer (status the SH-2 posts, a state the 68000 sets), or ownership passes with its value. A command word is written by the 68000 only while it reads 0, and by the SH-2 only while it is not 0. VRD's notes describe this as "the 68000 sets, the SH-2 clears" [VRD-NOTES, analysis/COMM_REGISTERS_HARDWARE_ANALYSIS.md]. That is not what the retail 68000 does while it waits: it tests a bit in the low byte of the word at `$A15122` (that is, `$A15123`) that the SH-2 sets, and clears the bit itself with `bclr` [32X-ROMSET, Virtua Racing Deluxe, 68000 code at `$881D70`, `$882890`]. The Virtua Fighter case study found this while checking what the sibling game's code says about the Virtua Racing Deluxe project's notes ([What this settles](../patterns/case-study-vf.md#what-this-settles-in-the-virtua-racing-deluxe-chapter)).
 2. **Write the data first and the signal last, in a different word.** The reader only reads the data once the signal says it is complete. The signal word is then the only word ever read while it is being written.
 3. **When a wrong value would do damage, read twice.** Aerobiz Ultimate reads every word written by the other side twice and acts only when both reads agree [AU-NOTES, disasm/sh2/master/rpc.c] <span class="tag emulator">emulator</span>. This is cheap: one extra access at one wait state.
 
@@ -73,20 +73,36 @@ One more SH-2 detail. Its bus controller has a one-entry write buffer, so a stor
 
 ## A mailbox that works
 
-Most programs need one thing from the ports: the 68000 asks an SH-2 to do a job and waits for the answer. This version follows the three rules. It uses `$A15120` as the command word and `$A15122` as the argument.
+Most programs need one thing from the ports: the 68000 asks an SH-2 to do a job and waits for the answer. This version follows the three rules and has the timeout that [Never wait forever](#never-wait-forever) asks for, but not the recovery after a timeout, which that section describes. It uses `$A15120` as the command word and `$A15122` as the argument. It assembles with GNU as for the 68000 (checked for this book); it was not run.
 
 ```asm
-; 68000: run SH-2 command d0.w (not 0) with argument d1.w; wait for it
+; 68000: run SH-2 command d0.w (not 0) with argument d1.w and wait for it.
+; Returns d0 = 0 when the job is done, -1 if the SH-2 never answered.
+; Do not call it from an interrupt handler: it waits.
 Sh2Call:
-        move.w  sr,-(sp)
-        ori.w   #$0700,sr        ; no interrupt handler may use the mailbox now
-.idle:  tst.w   $A15120          ; wait for any previous command to finish
-        bne.s   .idle
+        move.l  d2,-(sp)
+        move.l  #400000,d2       ; passes to wait in all; make it longer than your slowest job
+.claim: move.w  sr,-(sp)
+        ori.w   #$0700,sr        ; the test and both writes must not be split
+        tst.w   $A15120          ; is a previous command still running?
+        bne.s   .taken
         move.w  d1,$A15122       ; argument first
         move.w  d0,$A15120       ; command word last: this is the doorbell
-.busy:  tst.w   $A15120          ; the SH-2 clears it when the work is done
-        bne.s   .busy
-        move.w  (sp)+,sr
+        move.w  (sp)+,sr         ; interrupts are back on for the wait
+        bra.s   .wait
+.taken: move.w  (sp)+,sr
+        subq.l  #1,d2
+        bne.s   .claim
+        bra.s   .fail
+.wait:  tst.w   $A15120          ; the SH-2 clears it when the work is done
+        beq.s   .done
+        subq.l  #1,d2
+        bne.s   .wait
+.fail:  moveq   #-1,d0           ; see "Never wait forever" for what to do next
+        move.l  (sp)+,d2
+        rts
+.done:  moveq   #0,d0
+        move.l  (sp)+,d2
         rts
 ```
 
@@ -106,7 +122,8 @@ for (;;) {
 
 What each detail is for:
 
-- **Interrupts are masked on the 68000** for the whole call. If a V-Blank handler could also call `Sh2Call`, it would overwrite the argument of the call it interrupted. Aerobiz Ultimate masks them for exactly this reason [AU-NOTES, disasm/32x/sh2_lz.asm].
+- **Interrupts are masked only around the test and the two writes.** The routine is not meant to be called from a handler, so the mask guards against a handler that reaches the same words some other way: a fire-and-forget request, or a state word that shares `$A15122`. Without the mask such a handler could slip in between the test and the writes and overwrite the argument. It also covers a handler added later that breaks the rule. In a program whose handlers never touch the ports, the mask can be dropped. The wait runs with interrupts on. Masking for the whole call is simpler but stops vertical interrupts for as long as the SH-2 takes, and those that arrive meanwhile are not queued. Aerobiz Ultimate does mask for the whole job, for another reason, to keep every DMA from the cartridge away from the SH-2's reads, and its frame count runs about four frames short after the largest job ([Moving decompression to an SH-2](../techniques/compression.md#moving-decompression-to-an-sh-2)) [AU-NOTES, disasm/32x/sh2_lz.asm]. A handler that needs the SH-2 should not call this routine, since it would wait inside the interrupt. Have it set a request word that the main loop sends, as in [State, not commands](#state-not-commands).
+- **The countdown is shared** between waiting for a previous command and waiting for this one. On `-1` the SH-2 may still be running the job and may still clear the word later.
 - **Clearing the command word is the reply.** The SH-2 clears it only after the work is done, so a cleared word always means "finished". Clearing it as soon as the command is read would tell the 68000 the job was done while it was still running. Aerobiz Ultimate found the opposite mistake too: a handler that returned without clearing its word was dispatched again on the next pass, and every later command queued behind it. The fix was to clear on every path out of every handler, including handlers that block [AU-NOTES, KNOWN_ISSUES.md] <span class="tag emulator">emulator</span>.
 - **Results come back the same way**, in words the SH-2 writes before it clears the command word. Aerobiz Ultimate passes two longword arguments in `$A15124-$A1512B` and reads results back from the same words [AU-NOTES, disasm/sh2/master/rpc.c].
 
@@ -178,7 +195,7 @@ After Burner Complete does the opposite of sending one block: it makes a call fo
 3. The Master's CMD handler projects the object onto the screen and, if it is visible, adds it to the list it will draw. It writes −1 to `$A15124` if the object is off screen, or results to `$A15128`, then clears CMD and writes 0 to `$A15120`.
 4. The 68000, spinning on `$A15120`'s busy byte, reads the answer back into its object.
 
-The game sends about 75 objects per picture, up to 87, at 30 pictures a second. The Master does the multiplying and dividing, which the 68000 is slow at, and the 68000 gets back what it needs for its own game logic (whether the object is visible). The price is a round trip per object: in PicoDrive the 68000 spends about 12% of its time spinning for answers <span class="tag emulator">emulator</span> [AB32X, watch log of the object rings and per-PC profile over 2,000 frames of play]. PicoDrive cuts polling loops short, so the real figure is probably higher. Compare [When moving a job pays](../patterns/cpu-split.md#when-moving-a-job-pays).
+The game sends about 75 objects per picture, up to 87, at 30 pictures a second. That counts calls. [The 2D chapter](../techniques/2d-effects.md#after-burner-completes-scaler) counts the sprites in the draw list, up to 92 in play; the notes behind both figures do not say why the list can be longer than the calls. The Master does the multiplying and dividing, which the 68000 is slow at, and the 68000 gets back what it needs for its own game logic (whether the object is visible). The price is a round trip per object: in PicoDrive the 68000 spends about 12% of its time spinning for answers <span class="tag emulator">emulator</span> [AB32X, watch log of the object rings and per-PC profile over 2,000 frames of play]. PicoDrive cuts polling loops short, so the real figure is probably higher. Compare [When moving a job pays](../patterns/cpu-split.md#when-moving-a-job-pays).
 
 Its sound requests use CMD too, on the Slave, and wait for the answer. In its H-interrupt handler the 68000 takes the Z80's bus, collects a request the Z80 left in its RAM, and sends it to the Slave as `$0203` in `$A15122`, with CMD raised through bit 1 of `$A15102`. It then sends `$0200`, the tick that steps the Slave's music sequencer, waiting for `$A15122`'s high byte to clear after each [AB32X, 68000 code at `$88091E`; SH-2 code at `0x06000684`].
 
@@ -194,7 +211,7 @@ The 68000 can raise an interrupt on either SH-2 [32X-HWM §3.2 pp.20, 26, 28; §
 
 CMD arrives at interrupt level 8, below VRES (14), V (12) and H (10) and above PWM (6) [32X-HWM p.69]. The SH-2's status register mask must be below 8 for it to be taken.
 
-CMD behaves differently from the other four 32X interrupts. While masked, it is not presented to the SH-2 at all. If it is still pending when the SH-2 unmasks it, it is presented again then <span class="tag manual">manual</span> [32X-HWM §3.2 p.29, points to be aware of]. So a CMD raised while the SH-2 has it masked is delayed, not lost. A handler must still not count on the request being presented again once it is running.
+The manual singles CMD out from the other four 32X interrupts, but only in how a request is held. Its note covers an interrupt that is raised and then masked before the SH-2 takes it. For VRES, V, H and PWM the request stays asserted until it is cleared. For CMD the request is withdrawn while the mask is on and asserted again when the SH-2 unmasks it. The manual's own summary says that in both cases the request is saved until it is cleared <span class="tag manual">manual</span> [32X-HWM §3.2 p.29, points to be aware of (checked on the scan)]. So in the case it covers, a CMD is delayed, not lost, and the same holds for the other four. What the manual leaves out is whether a request that stays asserted can still be taken while its mask is on, and what happens to an event that arrives while the mask bit is already 0. For CMD, notaz's console test answers the second part: INTM set while the SH-2s have CMD masked reads back 1, and the Master takes the interrupt once it unmasks [TESTPICO, t_32x_irq_cmd]. The test does not wait long with CMD masked, and says nothing of the Slave. For V, H and PWM the same question is open ([Interrupt mask semantics](bugs.md#found-later); [discrepancy 44](../appendices/discrepancies.md)). A handler must still not count on the request being presented again once it is running.
 
 What happens to INTM and INTS afterwards is uncertain:
 
@@ -263,7 +280,7 @@ Mortal Kombat II shows the opposite extreme: its two SH-2s share nothing. The Sl
 
 ## What to take away
 
-- Eight words, and every access is a byte or a word. Give the address, not a COMM name, because the names mean different things in different headers.
+- Eight words, and every access is a byte, a word, or a longword that is really two words and not atomic. Give the address, not a COMM name, because the names mean different things in different headers.
 - Give each word one writer at a time, write the data before the signal, and read twice when a bad value would hurt.
 - Clear the command word after the work, on every path, and never wait without a limit. Then test the timeout on something other than PicoDrive.
 - CMD is the only way to reach an SH-2 that is not listening. Use it to stop the SH-2s, and confirm each step through a port.
