@@ -4,7 +4,7 @@ The 32X does not draw into the Mega Drive's picture, and the Mega Drive does not
 
 ## Two pictures, one output
 
-The Mega Drive's video leaves the console through the cartridge slot, into the 32X, and the 32X's video mixer combines it with its own VDP's output [32X-INTRO, block diagram]. Besides the picture itself, the Mega Drive sends a signal that tells the mixer where its picture is showing the backdrop, the colour of register 7 that fills every pixel no plane or sprite covers. PicoDrive's source names it /YS [PICODRIVE, pico/32x/draw.c]. The mixer needs three things to decide a pixel: whether the Mega Drive pixel there is backdrop, the 32X pixel's through bit, and the PRI bit of the 32X's bitmap mode register (bit 7 of `$A15180` / `0x20004100`).
+The Mega Drive's video leaves the console through the cartridge slot, into the 32X, and the 32X's video mixer combines it with its own VDP's output [32X-INTRO, block diagram]. Besides the picture itself, the Mega Drive sends a signal that tells the mixer where its picture is showing the backdrop, the colour of register 7 that fills every pixel no plane or sprite covers. PicoDrive's source names it /YS [PICODRIVE, pico/32x/draw.c]. The name is the cartridge slot's `-MYS` contact, which Sega's 32X service manual lists among the video timing signals without saying what it signals [32X-SVC §7-1] ([The cartridge connector](../megadrive/cartridge.md#what-the-cartridge-sees)); that it marks the backdrop is PicoDrive's reading. The mixer needs three things to decide a pixel: whether the Mega Drive pixel there is backdrop, the 32X pixel's through bit, and the PRI bit of the 32X's bitmap mode register (bit 7 of `$A15180` / `0x20004100`).
 
 ## The rule for each pixel
 
@@ -27,28 +27,28 @@ What follows from that:
 - **The Mega Drive's backdrop colour disappears while the layer is on.** Every backdrop pixel takes the 32X pixel instead. A screen that relied on register 7 for its background colour must draw that colour on the 32X <span class="tag emulator">emulator</span> [AU-NOTES, ROADMAP.md U-003].
 - **PRI only flips the meaning of the bit.** Any picture made with PRI = 0 can be made with PRI = 1 by flipping the through bit of every colour in use. So choose PRI by which group of colours is smaller, or by which change you want to make with one register write (see [handing over](#handing-the-screen-from-one-layer-to-the-other)).
 - **In direct colour mode each pixel carries its own through bit**, as bit 15 of its 16-bit word. In packed pixel and run length modes it comes from the palette entry [32X-HWM §3.3, direct color mode, run length mode].
-- **PRI can change between lines.** The VDP reads its registers at the end of each horizontal blank, so a new PRI applies from the next line [32X-HWM §3.3, VDP register]. Changing it from an H interrupt would put the 32X in front on part of the screen only. No program in our sources does this.
+- **PRI can change between lines.** The VDP reads its registers at the end of each horizontal blank, so a new PRI applies from the next line [32X-HWM §3.3, VDP register]. Changing it from an H interrupt would put the 32X in front on part of the screen only. No program read for this book does this.
 
 ## How games split the work
 
-Five retail games and two of the book's projects, by what each VDP draws:
+Six retail games and one of the book's projects (on two screens), by what each VDP draws:
 
 | Program | PRI | Through bits | Mega Drive draws | 32X draws |
 |---------|-----|--------------|------------------|-----------|
 | Star Wars Arcade | 0 | None, in play | Cockpit, score, timer | Space, ships, hyperspace |
-| Virtua Racing Deluxe | 0 | Entry 1 only (`$8000`) | Race HUD | The 3D scene |
+| Virtua Racing Deluxe | 0 | 224 of 256 entries; 0, 86-97, 113 and 190-207 without | Sky, clouds and scenery (plane B) | The road, cars, HUD text and map |
 | After Burner Complete | 0 | None, in play | Player's jet, HUD, crosshair | Sky and sea, ground detail, enemies, clouds, explosions |
 | Mortal Kombat II | 0 | All entries but 0 | Arena, energy bars | Fighters, foreground objects, menus |
-| Virtua Fighter | 0 | 246 of 256 entries; index 0 without | Sky and sea (plane B, re-sent every picture), HUD (plane A) | Fighters, floor, "FIGHT" and "TIME OVER" banners, "PRESS START BUTTON" |
+| Virtua Fighter | 0 | 246 of 256 entries; 0 and 7-15 without | Sky and sea (plane B, re-sent every picture: about 2,600 bytes, 36% of the 7,380 a frame's blanking allows), HUD (plane A) | Fighters, floor, "FIGHT" and "TIME OVER" banners, "PRESS START BUTTON" |
 | Knuckles' Chaotix | 1 | Entry 0 and 122 others | The level | Characters and some objects |
 | Aerobiz Ultimate, world map | 0 | Entry 0 only | Panels and text | The map |
 | Aerobiz Ultimate, SEGA logo | 1, then 0 | | The final logo | The spinning logo |
 
-Sources: [SWA], [MK2], [AB32X], [CHAOTIX], [VF32X, bitmap mode register and palette read in a fight at frame 1500], bitmap mode register and palette read in PicoDrive, and 32X frame buffers dumped (SWA at frame 1600, MK2 at frames 900-1700, After Burner Complete at frames 300 and 700 of play, Chaotix at attract frames 4300 and 4400); [VRD-NOTES, analysis/RENDERING_PIPELINE.md §9]; [AU-NOTES, disasm/sh2/master/fb.c, disasm/32x/map_screen.asm] <span class="tag emulator">emulator</span>.
+Sources: [SWA], [MK2], [AB32X], [CHAOTIX], [VF32X, bitmap mode register and palette read in a fight at frames 1500 and 2000], bitmap mode register and palette read in PicoDrive, and 32X frame buffers dumped (SWA at frame 1600, MK2 at frames 900-1700, After Burner Complete at frames 300 and 700 of play, Chaotix at attract frames 4300 and 4400); [32X-ROMSET, Virtua Racing Deluxe, bitmap mode register and palette read at frames 900, 1800, 3000 and 5500 (a race, started with scripted input), planes and sprite table dumped at frame 5499]; [AU-NOTES, disasm/sh2/master/fb.c, disasm/32x/map_screen.asm] <span class="tag emulator">emulator</span>.
 
 ### Mega Drive in front: HUDs and cockpits
 
-The default, PRI = 0 and no through bits, puts the Mega Drive on top. The 32X draws the full screen behind it, and the Mega Drive's tiles cover it wherever they are not transparent. Star Wars Arcade does exactly this. Its 32X frame buffer holds only the scene, and the X-wing cockpit, score and timer are Mega Drive tiles in front of it [SWA, 32X frame buffer at frame 1600]. Virtua Racing does the same with its race HUD [VRD-NOTES, analysis/RENDERING_PIPELINE.md §9]. In After Burner Complete the Mega Drive draws the player's own jet as well as the HUD, so the one object that is always on screen, and always the same size, costs the SH-2 nothing [AB32X, 32X frame buffer during play].
+The default, PRI = 0 and no through bits, puts the Mega Drive on top. The 32X draws the full screen behind it, and the Mega Drive's tiles cover it wherever they are not transparent. Star Wars Arcade does exactly this. Its 32X frame buffer holds only the scene, and the X-wing cockpit, score and timer are Mega Drive tiles in front of it [SWA, 32X frame buffer at frame 1600]. In After Burner Complete the Mega Drive draws the player's own jet as well as the HUD, so the one object that is always on screen, and always the same size, costs the SH-2 nothing [AB32X, 32X frame buffer during play].
 
 What this buys: the HUD costs the SH-2s nothing, never has to be redrawn into the frame buffer, and can change on the 68000's schedule. Text, which the Mega Drive draws well from a font in VRAM, stays off the 32X entirely. The 32X has to fill every pixel of its layer in each picture, because anything not covered by a Mega Drive tile is visible.
 
@@ -58,16 +58,19 @@ Mortal Kombat II turns it round. PRI stays 0, but 255 of its 256 palette entries
 
 By the rule above this is the same picture as PRI = 1 with the through bit on entry 0 only. Knuckles' Chaotix makes its picture the other way: PRI = 1, with the through bit on entry 0, the field its characters are drawn on, and on 122 other entries [CHAOTIX, bitmap mode register `$8081` and palette read in PicoDrive]. The choice costs nothing either way: the palette data carries the bit, so it is set once when the palette is built.
 
+Virtua Racing Deluxe's race screen is arranged the same way, which its project's notes did not say. The bitmap mode register reads `$8001` (packed pixel, PRI = 0), and 224 of the 256 palette entries carry the through bit; the 32 without it are 0, 86-97, 113 and 190-207. In the race, the 32X frame buffer holds the road, the cars, the HUD text and the map, and its index 0 field covers the sky. The Mega Drive supplies only plane B, the sky, clouds and horizon scenery, which shows through that field; plane A and the window plane are empty and no sprite is on screen [32X-ROMSET, Virtua Racing Deluxe, VRAM, VDP registers, bitmap mode register and palette at frames 5499-5500] <span class="tag emulator">emulator</span> ([discrepancy 53](../appendices/discrepancies.md)).
+
 What this buys: the arena is Mega Drive tiles, scrolled and animated by the Mega Drive VDP at no cost to the SH-2s. The SH-2s draw only the fighters. The rest of the frame buffer is reset to index 0 for each picture by the VDP's auto fill, with no CPU writes ([The 32X VDP](vdp.md#auto-fill)). The fighters get the 32X's colour range, and the backgrounds stay in the Mega Drive's.
 
 Homebrew written for PicoDrive often sets the through bit on every entry for the same reason: with PRI = 0 and no through bits, a picture drawn on the 32X is hidden wherever the Mega Drive's planes hold opaque tiles [S32X-SKILL, testing.md] <span class="tag emulator">emulator</span>.
 
 ### Masks: one entry that reverses the default
 
-A single colour with the opposite through bit can hide part of the other layer.
+A single colour with the opposite through bit can hide part of the other layer. Aerobiz Ultimate's world map covers a Mega Drive artefact with one:
 
-- **Virtua Racing** sets palette entry 1 to `$8000`: black, with the through bit. Under PRI = 0, any pixel drawn with index 1 covers the Mega Drive HUD, so the 3D renderer can black out a region of the HUD <span class="tag emulator">emulator</span> [VRD-NOTES, analysis/RENDERING_PIPELINE.md §9]. Mortal Kombat II's Battle Plan screen has the same `$8000` in entry 1 [MK2, palette read at frame 1140].
-- **Aerobiz Ultimate's world map** covers a Mega Drive artefact. In the 320-pixel mode a 32-tile-wide Mega Drive plane repeats, so columns 0-63 appear again at 256-319. The map's art leaves that strip as index 0, and nothing else in the map uses index 0. With the through bit on entry 0 alone, only the strip comes in front of the Mega Drive and hides the repeat. This costs no drawing at all <span class="tag emulator">emulator</span> [AU-NOTES, disasm/sh2/master/fb.c, HARDWARE_TESTS.md §9].
+- **Aerobiz Ultimate's world map.** In the 320-pixel mode a 32-tile-wide Mega Drive plane repeats, so columns 0-63 appear again at 256-319. The map's art leaves that strip as index 0, and nothing else in the map uses index 0. With the through bit on entry 0 alone, only the strip comes in front of the Mega Drive and hides the repeat. This costs no drawing at all <span class="tag emulator">emulator</span> [AU-NOTES, disasm/sh2/master/fb.c, HARDWARE_TESTS.md §9]. The port also tried widening the plane to 64 tiles, so that nothing would repeat, and dropped it: the widening moved the game's off-screen scratch rows into view ([Plane size](../megadrive/vdp-planes.md#plane-size-and-layout)), so the shipped map keeps the 32-tile plane and the mask.
+
+The Virtua Racing Deluxe project's notes describe another: palette entry 1 set to `$8000`, black with the through bit, as the one colour that covers the HUD. The retail cartridge does not bear that out. Its through bit is on 224 entries, and entry 1 is one of them.
 
 ## The display modes must match
 
@@ -87,7 +90,7 @@ There is one 256-entry palette, and it is not double-buffered like the frame buf
 
 | Entries | Used for |
 |---------|----------|
-| 0 | The through-bit sidebar, or transparent background |
+| 0 | The colour of the field behind the art: with the through bit, the sidebar that covers the Mega Drive; without it, a background the Mega Drive's tiles cover |
 | 1-15 | Interface colours of the engine |
 | 16-31 | Copy of Mega Drive palette line 1 (written by nothing else) |
 | 32-63 | Interface colour ramps |
@@ -105,7 +108,7 @@ Fades, flashes and dimmed backgrounds on the Mega Drive are changes to its CRAM,
 
 ### The two DACs differ
 
-The Mega Drive turns its 8 levels per channel into voltages through an uneven scale. No source gives the 32X's output levels, and both emulators treat its 32 levels as evenly spaced. So a 32X colour converted from a Mega Drive colour by repeating bits will not match it exactly on screen. Ares models this. It uses measured levels (0, 52, 87, 116, 144, 172, 206, 255 out of 255) for the Mega Drive and a straight scale for the 32X <span class="tag emulator">emulator</span> [ARES, md/vdp/color.cpp]. With bit repetition the two ends agree, but the steps between do not. Mega Drive level 1 shows at 52, its 32X copy (4 of 31) at about 33; level 6 shows at 206, its copy (27) at about 222. A 32X palette built to match one emulator's Mega Drive levels shows a step in the other: Aerobiz Ultimate's SEGA logo expects its white to brighten by about 17 of 255 under Ares when the Mega Drive takes over [AU-NOTES, HARDWARE_TESTS.md §8]. PicoDrive does not show the difference. See [Real output levels](../megadrive/vdp-color.md#real-output-levels).
+The Mega Drive turns its 8 levels per channel into voltages through an uneven scale. No source gives the 32X's output levels, and both emulators treat its 32 levels as evenly spaced. So a 32X colour converted from a Mega Drive colour by repeating bits will not match it exactly on screen. Ares models this. It uses measured levels (0, 52, 87, 116, 144, 172, 206, 255 out of 255) for the Mega Drive and a straight scale for the 32X <span class="tag emulator">emulator</span> [ARES, md/vdp/color.cpp]. With bit repetition the two ends agree, but the steps between do not. Mega Drive level 1 shows at 52, its 32X copy (4 of 31) at about 33; level 6 shows at 206, its copy (27) at about 222. A 32X palette built to match one emulator's Mega Drive levels shows a step in the other. Aerobiz Ultimate's SEGA logo palette was built from the levels PicoDrive displays, not by repeating bits: PicoDrive shows Mega Drive level 7 as 29 of 31, because it compresses the top step on purpose, and the 32X copy uses 29 as well (red and blue levels 5, 6, 7 become 21, 25, 29) [AU-NOTES, tools/make_sega_logo.py; PICODRIVE, pico/draw.c]. Under PicoDrive the hand-off is exact by construction. Ares shows level 7 as 255 while 29 of 31 on the 32X side is about 238, so the logo's brightest colours, the white and the brightest blue, should brighten by about 17 of 255 when the Mega Drive takes over [AU-NOTES, HARDWARE_TESTS.md §8]; that step was predicted, not reported. See [Real output levels](../megadrive/vdp-color.md#real-output-levels).
 
 Where an object has to cross from one layer to the other, plan for a small colour step, or build the 32X colours from a measured Mega Drive table rather than by repeating bits.
 
@@ -142,7 +145,10 @@ Any colour difference between the two DACs shows at step 2, as the logo stops, w
 - [MK2](../appendices/bibliography.md#mk2): bitmap mode register, palette and frame buffer read in PicoDrive
 - [CHAOTIX](../appendices/bibliography.md#chaotix): bitmap mode register, palette and frame buffer read in PicoDrive
 - [AB32X](../appendices/bibliography.md#ab32x): bitmap mode register, palette and frame buffer read in PicoDrive
-- [VRD-NOTES](../appendices/bibliography.md#vrd-notes): analysis/RENDERING_PIPELINE.md §9
+- [32X-ROMSET](../appendices/bibliography.md#32x-romset): Virtua Racing Deluxe (USA), bitmap mode register, palette, VRAM and VDP registers read in PicoDrive
+- [VF32X](../appendices/bibliography.md#vf32x): bitmap mode register and palette read in PicoDrive
+- [VRD-NOTES](../appendices/bibliography.md#vrd-notes): analysis/RENDERING_PIPELINE.md §9, as the account the retail cartridge was checked against
+- [32X-SVC](../appendices/bibliography.md#32x-svc): §7-1 edge connector
 - [AU-NOTES](../appendices/bibliography.md#au-notes): ROADMAP.md U-003, PORT_ARCHITECTURE.md, HARDWARE_TESTS.md §8-9, disasm/32x/map_screen.asm, disasm/sh2/master/fb.c
 - [S32X-SKILL](../appendices/bibliography.md#s32x-skill): testing.md
 - [PICODRIVE](../appendices/bibliography.md#picodrive): pico/32x/draw.c
