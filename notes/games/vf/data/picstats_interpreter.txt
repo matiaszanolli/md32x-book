@@ -1,0 +1,24 @@
+picture: calls(A) go->transform | poses | transform loop | stage 3 | entries B | rejects | frames go->0x194A8
+0: A=33 go->xform - | poses 10100 | loop 118088 | stage3 57687 | B in 330 | rej 76 | go->0x194A8 - frame
+1: A=33 go->xform 65235 | poses 10100 | loop 119186 | stage3 66105 | B in 339 | rej 68 | go->0x194A8 0.761 frame
+2: A=33 go->xform 65958 | poses 10100 | loop 118389 | stage3 60647 | B in 334 | rej 67 | go->0x194A8 0.756 frame
+3: A=33 go->xform 64175 | poses 10100 | loop 118114 | stage3 59804 | B in 331 | rej 64 | go->0x194A8 0.744 frame
+4: A=33 go->xform 64627 | poses 10100 | loop 118395 | stage3 67241 | B in 334 | rej 60 | go->0x194A8 0.750 frame
+5: A=33 go->xform 63002 | poses 10100 | loop 118043 | stage3 59983 | B in 328 | rej 64 | go->0x194A8 0.753 frame
+6: A=33 go->xform 67473 | poses 10100 | loop 118134 | stage3 63047 | B in 331 | rej 61 | go->0x194A8 0.755 frame
+7: A=33 go->xform 66962 | poses 10100 | loop 118445 | stage3 67141 | B in 335 | rej 60 | go->0x194A8 0.756 frame
+8: A=33 go->xform 65544 | poses 10100 | loop 118010 | stage3 72457 | B in 327 | rej 43 | go->0x194A8 0.749 frame
+9: A=33 go->xform 66980 | poses 10100 | loop 118468 | stage3 82561 | B in 336 | rej 43 | go->0x194A8 0.760 frame
+10: A=33 go->xform 67629 | poses 10100 | loop 117837 | stage3 70319 | B in 321 | rej 37 | go->0x194A8 0.753 frame
+Slave command 1:
+  299309 instructions, 1.616 frames, 2.07 SH-2 clocks per instruction
+  292383 instructions, 1.566 frames, 2.05 SH-2 clocks per instruction
+  277825 instructions, 1.476 frames, 2.04 SH-2 clocks per instruction
+  272292 instructions, 1.445 frames, 2.04 SH-2 clocks per instruction
+  266230 instructions, 1.406 frames, 2.03 SH-2 clocks per instruction
+  247513 instructions, 1.311 frames, 2.03 SH-2 clocks per instruction
+  244656 instructions, 1.286 frames, 2.02 SH-2 clocks per instruction
+  241046 instructions, 1.251 frames, 1.99 SH-2 clocks per instruction
+  238166 instructions, 1.233 frames, 1.99 SH-2 clocks per instruction
+  238826 instructions, 1.229 frames, 1.97 SH-2 clocks per instruction
+  228684 instructions, 1.173 frames, 1.97 SH-2 clocks per instruction
