@@ -1,0 +1,308 @@
+--- a/pico/32x/memory.c	2026-10-11 21:08:34.504358991 -0300
++++ b/pico/32x/memory.c	2026-10-11 21:56:03.933235170 -0300
+@@ -379,6 +379,7 @@
+ #endif
+ 
+ // ------------------------------------------------------------------
++static void vf_ev(int cpu, unsigned t, unsigned a, unsigned d, int w, int wr);
+ // 68k regs
+ 
+ static u32 p32x_reg_read16(u32 a)
+@@ -415,8 +416,52 @@
+   return Pico32x.regs[a / 2];
+ }
+ 
++
++/* VF: 68k tracer */
++static struct { unsigned key; unsigned long long n; } vf68_tab[4096];
++static int vf68_init; static FILE *vf68_log;
++static void vf68_dump(void) { int i; for (i=0;i<4096;i++) if (vf68_tab[i].n) fprintf(vf68_log,"m68k type%u pc %06x %llu\n", vf68_tab[i].key>>24, (vf68_tab[i].key&0xffffff)<<2, vf68_tab[i].n); fclose(vf68_log); }
++static void vf68_acc(unsigned type, unsigned pc) {
++  unsigned key = (type<<24)|((pc>>2)&0xffffff), h, i;
++  if (!vf68_init) { const char *f = getenv("VF68_TRACE"); vf68_init=1; if (f && (vf68_log=fopen(f,"w"))) atexit(vf68_dump); }
++  if (!vf68_log) return;
++  h = (key*2654435761u)>>20;
++  for (i=0;i<4096;i++){ unsigned idx=(h+i)&4095; if (vf68_tab[idx].n && vf68_tab[idx].key!=key) continue; vf68_tab[idx].key=key; vf68_tab[idx].n++; return; }
++}
++
++
++/* VF: instruction histogram + call log */
++static struct { unsigned long long key; unsigned long long n; } vfh_tab[1<<18];
++static unsigned long long vf_ni[2]; static int vfh_init; static FILE *vfh_log, *vfc_log; static unsigned long long vfc_lines, vfc_max = 2000000;
++void vf_flush(void);
++void vf_instr(SH2 *sh2, unsigned pc, unsigned op) {
++  vf_ni[sh2->is_slave]++;
++  if (!vfh_init) { const char *f = getenv("VF_PCH"), *c = getenv("VF_CALLS"), *m = getenv("VF_CALLS_MAX"); vfh_init = 1; atexit(vf_flush);
++    if (f) vfh_log = fopen(f, "w"); if (c) vfc_log = fopen(c, "w"); if (m) vfc_max = strtoull(m, 0, 0); }
++  if (vfh_log) {
++    unsigned i, h; unsigned long long key = ((unsigned long long)sh2->is_slave << 32) | pc;
++    h = (unsigned)((key * 11400714819323198485ull) >> 46);
++    for (i = 0; i < (1u<<18); i++) { unsigned idx = (h + i) & ((1u<<18)-1);
++      if (vfh_tab[idx].n && vfh_tab[idx].key != key) continue;
++      vfh_tab[idx].key = key; vfh_tab[idx].n++; break; }
++  }
++  if (vfc_log && vfc_lines < vfc_max) {
++    unsigned tgt = 0; int kind = 0;
++    if ((op & 0xf0ff) == 0x400b) { tgt = sh2->r[(op >> 8) & 15]; kind = 'C'; }
++    else if ((op & 0xf000) == 0xb000) { tgt = pc + 4 + (((int)(op << 20)) >> 19); kind = 'C'; }
++    else if ((op & 0xf0ff) == 0x0003) { tgt = pc + 4 + sh2->r[(op >> 8) & 15]; kind = 'C'; }
++    else if ((op & 0xf0ff) == 0x402b) { tgt = sh2->r[(op >> 8) & 15]; kind = 'J'; }
++    else if (op == 0x000b) { kind = 'R'; tgt = sh2->pr; }
++    else if (op == 0x002b) { kind = 'E'; }
++    if (kind) { vfc_lines++; fprintf(vfc_log, "%u %c%c %08x %08x %llu\n", sh2_cycles_done_m68k(sh2), sh2->is_slave ? 'S' : 'M', kind, pc, tgt, vf_ni[sh2->is_slave]); }
++  }
++}
++void vf_irq(SH2 *sh2, int level, int vector) { if (vfc_log && vfc_lines < vfc_max) { vfc_lines++; fprintf(vfc_log, "%u %cI %08x %08x %llu\n", sh2_cycles_done_m68k(sh2), sh2->is_slave ? 'S' : 'M', sh2->pc, level * 256 + vector, vf_ni[sh2->is_slave]); } }
++void vf_flush(void) { int i; if (vfh_log) { for (i=0;i<(1<<18);i++) if (vfh_tab[i].n) fprintf(vfh_log,"%c %08x %llu\n", (vfh_tab[i].key>>32)?'S':'M', (unsigned)vfh_tab[i].key, vfh_tab[i].n); fclose(vfh_log); vfh_log = 0; } if (vfc_log) { fclose(vfc_log); vfc_log = 0; } }
++
+ static void dreq0_write(u16 *r, u32 d)
+ {
++  vf68_acc(1, SekPc);
+   if (!(r[6 / 2] & P32XS_68S)) {
+     elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO w16 without 68S?");
+     return; // ignored - tested
+@@ -717,6 +762,7 @@
+ static void p32x_vdp_write8(u32 a, u32 d, SH2 *sh2)
+ {
+   u16 *r = Pico32x.vdp_regs;
++  if (sh2) vf_ev(sh2->is_slave, sh2_cycles_done_m68k(sh2), 0x20004100 | (a & 0x0f), d & 0xff, 1, 1);
+   a &= 0x0f;
+ 
+   // TODO: verify what's writeable
+@@ -756,6 +802,7 @@
+ 
+ static void p32x_vdp_write16(u32 a, u32 d, SH2 *sh2)
+ {
++  if (sh2) vf_ev(sh2->is_slave, sh2_cycles_done_m68k(sh2), 0x20004100 | (a & 0x0e), d & 0xffff, 2, 1);
+   a &= 0x0e;
+   if (a == 6) { // fill start
+     Pico32x.vdp_regs[6 / 2] = d;
+@@ -855,6 +902,7 @@
+ {
+   u16 *r = Pico32x.regs;
+   u32 old;
++  vf_ev(sh2->is_slave, sh2_cycles_done_m68k(sh2), 0x20004000 | (a & 0x3f), d & 0xff, 1, 1);
+ 
+   a &= 0x3f;
+   sh2->poll_cnt = 0;
+@@ -967,6 +1015,7 @@
+ 
+ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
+ {
++  vf_ev(sh2->is_slave, sh2_cycles_done_m68k(sh2), 0x20004000 | (a & 0x3e), d & 0xffff, 2, 1);
+   a &= 0x3e;
+ 
+   sh2->poll_cnt = 0;
+@@ -1131,6 +1180,7 @@
+ 
+   if ((a & 0xffc0) == 0x5100) { // a15100
+     p32x_reg_write8(a, d);
++    vf_ev(2, SekCyclesDone(), a, d & 0xff, 1, 1);
+ #ifdef __LIBRETRO__
+     vrd_mmio_trace_m68k_event(SekPc, a, d & 0xff, 1, 1);
+ #endif
+@@ -1144,6 +1194,7 @@
+ 
+   if (!(Pico32x.regs[0] & P32XS_FM)) {
+     if ((a & 0xfff0) == 0x5180) { // a15180
++      vf_ev(2, SekCyclesDone(), 0xa10000 | (a & 0xffff), d & 0xff, 1, 1);
+       p32x_vdp_write8(a, d, NULL);
+       return;
+     }
+@@ -1190,6 +1241,7 @@
+ 
+   if ((a & 0xffc0) == 0x5100) { // a15100
+     p32x_reg_write16(a, d);
++    vf_ev(2, SekCyclesDone(), a, d & 0xffff, 2, 1);
+ #ifdef __LIBRETRO__
+     vrd_mmio_trace_m68k_event(SekPc, a, d & 0xffff, 1, 2);
+ #endif
+@@ -1203,6 +1255,7 @@
+ 
+   if (!(Pico32x.regs[0] & P32XS_FM)) {
+     if ((a & 0xfff0) == 0x5180) { // a15180
++      vf_ev(2, SekCyclesDone(), 0xa10000 | (a & 0xffff), d & 0xffff, 2, 1);
+       p32x_vdp_write16(a, d, NULL); // FIXME?
+       return;
+     }
+@@ -1401,11 +1454,13 @@
+ 
+ static void m68k_write8_dram0_ow(u32 a, u32 d)
+ {
++  vf68_acc((a&0x20000)?3:2, SekPc);
+   sh2_write8_dramN(Pico32xMem->dram[0], a, d);
+ }
+ 
+ static void m68k_write8_dram1_ow(u32 a, u32 d)
+ {
++  vf68_acc((a&0x20000)?3:2, SekPc);
+   sh2_write8_dramN(Pico32xMem->dram[1], a, d);
+ }
+ 
+@@ -1422,11 +1477,13 @@
+ 
+ static void m68k_write16_dram0_ow(u32 a, u32 d)
+ {
++  vf68_acc((a&0x20000)?5:4, SekPc);
+   sh2_write16_dramN(Pico32xMem->dram[0], a, d);
+ }
+ 
+ static void m68k_write16_dram1_ow(u32 a, u32 d)
+ {
++  vf68_acc((a&0x20000)?5:4, SekPc);
+   sh2_write16_dramN(Pico32xMem->dram[1], a, d);
+ }
+ 
+@@ -2049,6 +2106,65 @@
+ #define SH2MAP_ADDR2OFFS_W(a) \
+   ((u32)(a) >> SH2_WRITE_SHIFT)
+ 
++
++/* VF: access tracer, count SH2 accesses by cpu/region/pc */
++#include <stdio.h>
++#include <stdlib.h>
++static struct { unsigned key; unsigned long long n; } vf_tab[1<<16];
++static int vf_init; static FILE *vf_log;
++static unsigned long long vf_sd[2][2][1024]; static unsigned long long vf_cart[2][1024];
++static void vf_dump(void) {
++  int i, c, w; for (c = 0; c < 2; c++) for (i = 0; i < 1024; i++) if (vf_cart[c][i]) fprintf(vf_log, "cart cpu%d blk %06x %llu\n", c, i << 12, vf_cart[c][i]);
++  for (c = 0; c < 2; c++) for (w = 0; w < 2; w++) for (i = 0; i < 1024; i++) if (vf_sd[c][w][i]) fprintf(vf_log, "sdram cpu%d %c blk %05x %llu\n", c, w ? 'W' : 'R', i << 8, vf_sd[c][w][i]);
++  for (i = 0; i < (1<<16); i++) if (vf_tab[i].n) {
++    unsigned k = vf_tab[i].key;
++    fprintf(vf_log, "cpu%d region%d %c w%d pc %08x %llu\n", (k>>31)&1, (k>>24)&0xf, (k&(1u<<30))?'W':'R', (k>>28)&3, (k&0xffffff)<<4, vf_tab[i].n); }
++  fclose(vf_log); }
++static int vf_region(unsigned a) {
++  unsigned b = a & 0x1fffffff;
++  if (b >= 0x04000000 && b < 0x04020000) return 1;   /* frame buffer */
++  if (b >= 0x04020000 && b < 0x04040000) return 2;   /* overwrite image */
++  if (b >= 0x06000000 && b < 0x06040000) return 3;   /* SDRAM */
++  if (b >= 0x02000000 && b < 0x02400000) return 4;   /* cartridge */
++  if (b >= 0x4100 && b < 0x4200 && (a>>29)!=7) return 5;     /* VDP regs */
++  if (b >= 0x4200 && b < 0x4400 && (a>>29)!=7) return 6;     /* palette */
++  if (b >= 0x4030 && b < 0x4040 && (a>>29)!=7) return 7;     /* PWM */
++  if (b >= 0x4000 && b < 0x4030 && (a>>29)!=7) return 8;     /* sys regs */
++  if ((a>>29)==6) return 9;                           /* on-chip RAM / data array */
++  if ((a>>29)==7) return 10;                          /* on-chip regs */
++  if (b < 0x4000) return 11;                          /* boot rom */
++  return 12;
++}
++static FILE *vf_evt; static int vf_evt_init;
++static void vf_ev(int cpu, unsigned t, unsigned a, unsigned d, int w, int wr) {
++  if (!vf_evt_init) { const char *f = getenv("VF_EVT"); vf_evt_init = 1; if (f) vf_evt = fopen(f, "w"); }
++  if (vf_evt) fprintf(vf_evt, "%u %c%c%d %08x %x\n", t, "MSK"[cpu], wr?'W':'R', w, a, d);
++}
++static unsigned vfw_lo, vfw_hi; static FILE *vfw_log; static int vfw_init; static unsigned long long vfw_n, vfw_max = 200000;
++static void vf_watch(SH2 *sh2, unsigned a, int wr, int w, unsigned d) {
++  if (!vfw_init) { const char *r = getenv("VF_WATCH"), *l = getenv("VF_WATCH_LOG"), *m = getenv("VF_WATCH_MAX"); vfw_init = 1;
++    if (r && l && sscanf(r, "%x-%x", &vfw_lo, &vfw_hi) == 2) vfw_log = fopen(l, "w"); if (m) vfw_max = strtoull(m, 0, 0); }
++  if (!vfw_log || vfw_n >= vfw_max) return;
++  { unsigned b = a & 0x1fffffff; if (b >= vfw_lo && b < vfw_hi) { vfw_n++; fprintf(vfw_log, "%u %c %c%d %08x %08x %08x\n", sh2_cycles_done_m68k(sh2), sh2->is_slave ? 'S' : 'M', wr ? 'W' : 'R', w, sh2->ppc, a, d); } }
++}
++static void vf_acc(SH2 *sh2, unsigned a, int wr, int w, unsigned d) {
++  vf_watch(sh2, a, wr, w, d);
++  unsigned key, h, pc; int r, i;
++  if (!vf_init) { const char *f = getenv("VF_TRACE"); vf_init = 1; if (f && (vf_log = fopen(f, "w"))) atexit(vf_dump); }
++  if (!vf_log) return;
++  r = vf_region(a); pc = sh2->ppc >> 4;
++  if (r == 3) vf_sd[sh2->is_slave][wr ? 1 : 0][(a >> 8) & 1023]++;
++  if (r == 4) vf_cart[sh2->is_slave][(a >> 12) & 1023]++;
++  key = ((unsigned)sh2->is_slave << 31) | (wr ? (1u<<30) : 0) | ((unsigned)(r & 0xf) << 24) | (pc & 0xffffff);
++  /* width folded into key through region bits 29-28 */
++  key |= ((unsigned)(w == 1 ? 0 : w == 2 ? 1 : 2)) << 28;
++  h = (key * 2654435761u) >> 16;
++  for (i = 0; i < (1<<16); i++) {
++    unsigned idx = (h + i) & 0xffff;
++    if (vf_tab[idx].n && vf_tab[idx].key != key) continue;
++    vf_tab[idx].key = key; vf_tab[idx].n++; return; }
++}
++
+ u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
+ {
+   const sh2_memmap *sh2_map = sh2->read8_map;
+@@ -2061,6 +2177,7 @@
+   else
+     p = ((sh2_read_handler *)(p << 1))(a, sh2);
+ #ifdef __LIBRETRO__
++  vf_acc(sh2, a, 0, 1, p);
+   vrd_q028_sh2_access(sh2, a, p, 0, 1);
+   if (vrd_rv_on() && (Pico32x.regs[6 / 2] & P32XS_RV) &&
+       ((a & 0x1ff00000u) == 0x02000000u))
+@@ -2084,6 +2201,7 @@
+   else
+     p = ((sh2_read_handler *)(p << 1))(a, sh2);
+ #ifdef __LIBRETRO__
++  vf_acc(sh2, a, 0, 2, p);
+   vrd_q028_sh2_access(sh2, a, p, 0, 2);
+   if (vrd_rv_on() && (Pico32x.regs[6 / 2] & P32XS_RV) &&
+       ((a & 0x1ff00000u) == 0x02000000u))
+@@ -2108,6 +2226,7 @@
+   } else
+     p = ((sh2_read_handler *)(p << 1))(a, sh2);
+ #ifdef __LIBRETRO__
++  vf_acc(sh2, a, 0, 4, p);
+   vrd_q028_sh2_access(sh2, a, p, 0, 4);
+   if (vrd_rv_on() && (Pico32x.regs[6 / 2] & P32XS_RV) &&
+       ((a & 0x1ff00000u) == 0x02000000u))
+@@ -2127,6 +2246,7 @@
+   wh = sh2_wmap[SH2MAP_ADDR2OFFS_W(a)];
+   wh(a, d, sh2);
+ #ifdef __LIBRETRO__
++  vf_acc(sh2, a, 1, 1, d);
+   vrd_q028_sh2_access(sh2, a, d, 1, 1);
+ #ifndef DRC_SH2
+   sh2->icount -= vrd_timing_sh2_access(sh2, a, 1, 1);
+@@ -2142,6 +2262,7 @@
+   wh = sh2_wmap[SH2MAP_ADDR2OFFS_W(a)];
+   wh(a, d, sh2);
+ #ifdef __LIBRETRO__
++  vf_acc(sh2, a, 1, 2, d);
+   vrd_q028_sh2_access(sh2, a, d, 1, 2);
+ #ifndef DRC_SH2
+   sh2->icount -= vrd_timing_sh2_access(sh2, a, 1, 2);
+@@ -2157,6 +2278,7 @@
+   wh = sh2_wmap[SH2MAP_ADDR2OFFS_W(a)];
+   wh(a, d, sh2);
+ #ifdef __LIBRETRO__
++  vf_acc(sh2, a, 1, 4, d);
+   vrd_q028_sh2_access(sh2, a, d, 1, 4);
+ #ifndef DRC_SH2
+   sh2->icount -= vrd_timing_sh2_access(sh2, a, 1, 4);
+--- a/cpu/sh2/mame/sh2pico.c	2026-08-13 02:20:29.727491339 -0300
++++ b/cpu/sh2/mame/sh2pico.c	2026-10-11 21:24:59.763864470 -0300
+@@ -109,6 +109,7 @@
+ 
+ #ifdef __LIBRETRO__
+ extern void vrd_q027_sh2_instruction(SH2 *sh2, unsigned int pc);
++extern void vf_instr(SH2 *sh2, unsigned int pc, unsigned int op);
+ extern void vrd_q028_sh2_fetch_begin(SH2 *sh2, unsigned int address);
+ extern void vrd_q028_sh2_fetch_end(SH2 *sh2, unsigned int address);
+ extern void vrd_q028_sh2_instruction(SH2 *sh2, unsigned int pc,
+@@ -168,6 +169,7 @@
+ 		if (!sh2->is_slave)
+ 			vrd_q027_sh2_instruction(sh2, sh2->ppc);
+ 		vrd_q028_sh2_instruction(sh2, sh2->ppc, opcode);
++		vf_instr(sh2, sh2->ppc, opcode);
+ #endif
+ 		sh2->delay = 0;
+ 		sh2->pc += 2;
+@@ -284,6 +286,7 @@
+ 
+ #ifdef __LIBRETRO__
+ 		vrd_q028_sh2_instruction(sh2, sh2->ppc, opcode);
++		vf_instr(sh2, sh2->ppc, opcode);
+ #endif
+ 
+ 		sh2->delay = 0;
+--- a/cpu/sh2/sh2.c	2026-08-13 02:20:41.962726228 -0300
++++ b/cpu/sh2/sh2.c	2026-10-11 21:26:34.312847518 -0300
+@@ -53,8 +53,10 @@
+ 	sh2->pending_int_irq = 0;
+ }
+ 
++extern void vf_irq(SH2 *sh2, int level, int vector);
+ void sh2_do_irq(SH2 *sh2, int level, int vector)
+ {
++	vf_irq(sh2, level, vector);
+ #ifdef __LIBRETRO__
+ 	vrd_q028_sh2_irq(sh2, 1);
+ #endif

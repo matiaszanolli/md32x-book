@@ -163,6 +163,7 @@ The renderers split the work in three different ways:
   - **Floors and ceilings** are taken one at a time from a shared counter. They are sorted first, largest first and grouped by texture.
   - **Sprites** are split at a screen column chosen so that each CPU gets about half the sprite pixels: the Master draws to the left, the Secondary to the right.
   - The lock is `TAS.B`, which Sega's manual says not to use on the 32X <span class="tag disputed">disputed</span> ([discrepancy 12](../appendices/discrepancies.md)).
+- **By stage, with both busy: Virtua Fighter.** A four-stage pipeline joined by two rings in SDRAM. The Master transforms, culls, clips and lights and posts a slot per polygon; the Slave sorts them into 512 depth buckets as they arrive; the Master walks the buckets far to near and posts two clipped edge chains per polygon; the Slave rasterises them with auto fills. No z-buffer ([Case study](../patterns/case-study-vf.md#four-stages-two-rings)).
 - **One draws, one plays sound: After Burner Complete and Mortal Kombat II** ([One SH-2 draws, the other plays sound](../patterns/cpu-split.md#one-sh-2-draws-the-other-plays-sound)).
 
 The homebrew notes suggest starting smaller: let the Slave clear the frame buffer while the Master transforms, then try giving each CPU half the screen's rows [S32X-SKILL, references/optimization.md]. Splitting by rows needs no locks on the frame buffer, but each half must know about every polygon that crosses it.

@@ -1,0 +1,40 @@
+pc=880be6 type=3 dest=$00000 len=64 words n=1 f=11-11 src=$ffb800
+pc=891fd2 type=1 dest=$0a000 len=448 words n=1 f=2789-2789 src=$ffbc00
+pc=ff04e4 type=1 dest=$0f000 len=128 words n=391 f=500-890 src=$ffb900
+pc=ff0514 type=1 dest=$0f000 len=128 words n=807 f=965-3600 src=$ffb900
+pc=ff0540 type=3 dest=$00000 len=64 words n=807 f=965-3600 src=$ffb800
+pc=ff05fa type=1 dest=$0f000 len=128 words n=4 f=12-2792 src=$ffb900
+pc=ff0626 type=3 dest=$00000 len=64 words n=4 f=12-2792 src=$ffb800
+pc=ff2a70 type=1 dest=$0f000 len=128 words n=901 f=967-2767 src=$ffb900
+pc=ff2b0e type=1 dest=$0c000 len=41 words n=901 f=967-2767 src=$ff90bc,$ff90be,$ff90c0 ... (84)
+pc=ff2b0e type=1 dest=$0c080 len=41 words n=901 f=967-2767 src=$ff90bc,$ff90be,$ff90c0 ... (87)
+pc=ff2b0e type=1 dest=$0c100 len=41 words n=901 f=967-2767 src=$ff90bc,$ff90d2,$ff90d4 ... (93)
+pc=ff2b0e type=1 dest=$0c180 len=41 words n=901 f=967-2767 src=$ff90d2,$ff90fe,$ff9100 ... (100)
+pc=ff2b0e type=1 dest=$0c200 len=41 words n=901 f=967-2767 src=$ff912a,$ff912e,$ff9146 ... (101)
+pc=ff2b0e type=1 dest=$0c280 len=41 words n=901 f=967-2767 src=$ff912a,$ff9146,$ff9160 ... (103)
+pc=ff2b0e type=1 dest=$0c300 len=41 words n=901 f=967-2767 src=$ff912a,$ff9146,$ff9160 ... (104)
+pc=ff2b0e type=1 dest=$0c380 len=41 words n=901 f=967-2767 src=$ff9160,$ff9162,$ff9164 ... (105)
+pc=ff2b0e type=1 dest=$0c400 len=41 words n=901 f=967-2767 src=$ff9160,$ff9162,$ff92b4 ... (105)
+pc=ff2b0e type=1 dest=$0c480 len=41 words n=901 f=967-2767 src=$ff9160,$ff9162,$ff92b2 ... (106)
+pc=ff2b0e type=1 dest=$0c500 len=41 words n=901 f=967-2767 src=$ff9160,$ff9162,$ff92b2 ... (107)
+pc=ff2b0e type=1 dest=$0c580 len=41 words n=901 f=967-2767 src=$ff9160,$ff9162,$ff92b2 ... (108)
+pc=ff2b0e type=1 dest=$0c600 len=41 words n=901 f=967-2767 src=$ff9160,$ff9162,$ff92b2 ... (109)
+pc=ff2b0e type=1 dest=$0c680 len=41 words n=901 f=967-2767 src=$ff9160,$ff92b0,$ff92b2 ... (110)
+pc=ff2b0e type=1 dest=$0c700 len=41 words n=901 f=967-2767 src=$ff92b0,$ff9400,$ff9402 ... (110)
+pc=ff2b0e type=1 dest=$0c780 len=41 words n=901 f=967-2767 src=$ff9400,$ff9550,$ff9552 ... (110)
+pc=ff2b0e type=1 dest=$0c800 len=41 words n=901 f=967-2767 src=$ff9550,$ff96a0,$ff96a2 ... (110)
+pc=ff2b0e type=1 dest=$0c880 len=41 words n=901 f=967-2767 src=$ff96a0,$ff97f0,$ff97f2 ... (110)
+pc=ff2b0e type=1 dest=$0c900 len=41 words n=901 f=967-2767 src=$ff97f0,$ff9940,$ff9942 ... (110)
+pc=ff2b0e type=1 dest=$0c980 len=41 words n=901 f=967-2767 src=$ff9940,$ff9a90,$ff9a92 ... (110)
+pc=ff2b0e type=1 dest=$0ca00 len=41 words n=901 f=967-2767 src=$ff9a90,$ff9be0,$ff9be2 ... (110)
+pc=ff2b0e type=1 dest=$0ca80 len=41 words n=901 f=967-2767 src=$ff9be0,$ff9d30,$ff9d32 ... (105)
+pc=ff2b0e type=1 dest=$0cb00 len=41 words n=901 f=967-2767 src=$ff9d30,$ff9e80,$ff9e82 ... (95)
+pc=ff2b0e type=1 dest=$0cb80 len=41 words n=901 f=967-2767 src=$ff9e80,$ff9fd0,$ff9fd2 ... (94)
+pc=ff2b0e type=1 dest=$0cc00 len=41 words n=901 f=967-2767 src=$ff9fd0,$ffa120,$ffa122 ... (92)
+pc=ff2b0e type=1 dest=$0cc80 len=41 words n=901 f=967-2767 src=$ffa120,$ffa270,$ffa272 ... (90)
+pc=ff2b0e type=1 dest=$0cd00 len=41 words n=901 f=967-2767 src=$ffa270,$ffa3c0,$ffa3c2 ... (89)
+pc=ff2b0e type=1 dest=$0cd80 len=41 words n=901 f=967-2767 src=$ffa3c0,$ffa510,$ffa512 ... (89)
+pc=ff2b0e type=1 dest=$0ce00 len=41 words n=901 f=967-2767 src=$ffa510,$ffa660,$ffa662 ... (88)
+pc=ff2b0e type=1 dest=$0ce80 len=41 words n=901 f=967-2767 src=$ffa660,$ffa7b0,$ffa7b2 ... (87)
+pc=ff2b0e type=1 dest=$0cf00 len=41 words n=901 f=967-2767 src=$ffa7b0,$ffa900,$ffa902 ... (86)
+pc=ff2b0e type=1 dest=$0cf80 len=41 words n=901 f=967-2767 src=$ffa900,$ffa9ac,$ffa9ae ... (85)

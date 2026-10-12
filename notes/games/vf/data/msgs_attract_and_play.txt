@@ -1,0 +1,36 @@
+picture 0182 pc=8812ee n=1 f=874-874 params(A1512x)=2,3,8,9  e.g. 2=00 3=24 8=04 9=00
+picture 0183 pc=8811f6 n=1 f=874-874 params(A1512x)=2,3  e.g. 2=00 3=00
+picture 0184 pc=ff08da n=1 f=961-961 params(A1512x)=2,3,6  e.g. 2=00 3=00 6=00
+picture 0184 pc=ff105e n=1115 f=965-4999 params(A1512x)=2,3,8,9  e.g. 2=00 3=00 8=00 9=00; 2=00 3=00 8=00 9=00; 2=00 3=00 8=00 9=00
+picture 0184 pc=ff1086 n=1 f=4795-4795 params(A1512x)=2,3,8,9  e.g. 2=04 3=00 8=00 9=00
+picture 0184 pc=ff1098 n=2 f=963-4861 params(A1512x)=2,3,8,9  e.g. 2=00 3=00 8=00 9=00; 2=00 3=00 8=00 9=00
+picture 0185 pc=881ce0 n=1 f=892-892 params(A1512x)=2,3,8  e.g. 2=00 3=10 8=04
+picture 0186 pc=ff1146 n=1 f=966-966 params(A1512x)=2,3,6  e.g. 2=00 3=00 6=00
+picture 0186 pc=ff13d0 n=893 f=970-2766 params(A1512x)=8,9  e.g. 8=00 9=00; 8=7f 9=00; 8=00 9=00
+picture 0186 pc=ff13f2 n=7 f=968-2172 params(A1512x)=8,9  e.g. 8=00 9=00; 8=24 9=00; 8=00 9=00
+simple 01 pc=8811ca n=1 f=873-873 params(A1512x)=2,3,4,5,6,7,8,9,A,B,C,D,E,F  e.g. 2=00 3=00 4=00 5=00 6=00 7=00 8=00 9=00 A=00 B=00 C=00 D=00 E=00 F=00
+simple 01 pc=881ca6 n=1 f=892-892 params(A1512x)=2,3,4,5,6,7,8,9,A,B,C,D,E,F  e.g. 2=00 3=00 4=00 5=00 6=00 7=00 8=00 9=00 A=00 B=00 C=00 D=00 E=00 F=00
+simple 02 pc=88ef7e n=1 f=721-721 params(A1512x)=8,9  e.g. 8=8d 9=00
+simple 02 pc=892780 n=2 f=13-13 params(A1512x)=8,9  e.g. 8=f4 9=00; 8=f4 9=00
+simple 02 pc=895674 n=1 f=631-631 params(A1512x)=8,9  e.g. 8=af 9=00
+simple 02 pc=ff102a n=36 f=803-872 params(A1512x)=8,9  e.g. ; 8=00 9=00; 8=24 9=7f
+simple 03 pc=893aca n=2 f=798-801 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=93 A=06 B=08 C=00 D=18 E=00 F=20; 8=00 9=93 A=06 B=08 C=00 D=18 E=00 F=20
+simple 05 pc=88eb1c n=4 f=243-243 params(A1512x)=8,9,A,B  e.g. 8=00 9=9a A=0b B=3e; 8=00 9=9a A=0b B=3e; 8=00 9=9a A=0b B=3e
+simple 05 pc=892520 n=2 f=2789-2792 params(A1512x)=8,9,A,B  e.g. 8=00 9=9c A=7e B=da; 8=00 9=9c A=7e B=da
+simple 05 pc=89292e n=4 f=12-12 params(A1512x)=8,9,A,B  e.g. 8=00 9=9a A=04 B=58; 8=00 9=9a A=04 B=58; 8=00 9=9a A=04 B=58
+simple 05 pc=8937ec n=2 f=796-799 params(A1512x)=8,9,A,B  e.g. 8=00 9=99 A=d0 B=64; 8=00 9=99 A=d0 B=64
+simple 05 pc=89571e n=4 f=494-497 params(A1512x)=8,9,A,B  e.g. 8=00 9=9c A=7e B=da; 8=00 9=9c A=7e B=da; 8=00 9=9c A=7e B=da
+simple 06 pc=89387c n=2 f=799-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=9b B=e8 C=00 D=b0 E=00 F=60; 8=00 9=97 A=9b B=e8 C=00 D=b0 E=00 F=60
+simple 06 pc=8938c6 n=2 f=799-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=27 B=70 C=01 D=04 E=00 F=68; 8=00 9=97 A=27 B=70 C=01 D=04 E=00 F=68
+simple 06 pc=893a5e n=30 f=814-843 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=93 A=0d B=24 C=00 D=50 E=00 F=5c; 8=00 9=93 A=0d B=24 C=00 D=50 E=00 F=5c; 8=00 9=93 A=12 B=14 C=00 D=50 E=00 F=5c
+simple 06 pc=893a98 n=30 f=814-843 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=a9 B=ae C=00 D=50 E=00 F=2c; 8=00 9=97 A=a9 B=ae C=00 D=50 E=00 F=2c; 8=00 9=97 A=a9 B=ae C=00 D=50 E=00 F=2c
+simple 06 pc=893b04 n=2 f=798-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=a9 B=ae C=00 D=50 E=00 F=2c; 8=00 9=97 A=a9 B=ae C=00 D=50 E=00 F=2c
+simple 06 pc=893b3e n=2 f=798-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=98 A=15 B=36 C=00 D=50 E=00 F=a0; 8=00 9=98 A=15 B=36 C=00 D=50 E=00 F=a0
+simple 06 pc=893b7e n=2 f=798-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=ad B=18 C=00 D=50 E=00 F=a0; 8=00 9=97 A=ad B=18 C=00 D=50 E=00 F=a0
+simple 06 pc=893bcc n=2 f=798-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=ed B=6c C=01 D=04 E=00 F=68; 8=00 9=97 A=ed B=6c C=01 D=04 E=00 F=68
+simple 06 pc=893c16 n=2 f=798-802 params(A1512x)=8,9,A,B,C,D,E,F  e.g. 8=00 9=97 A=27 B=70 C=01 D=04 E=00 F=68; 8=00 9=97 A=27 B=70 C=01 D=04 E=00 F=68
+simple 08 pc=ff1016 n=2020 f=966-4999 params(A1512x)=  e.g. ; ; 
+simple 09 pc=88086c n=2 f=5-5 params(A1512x)=2,3,4,5,6,7  e.g. 2=00 3=00 4=00 5=00 6=00 7=00; 2=00 3=00 4=00 5=00 6=00 7=00
+simple 0c pc=88e64c n=1 f=873-873 params(A1512x)=2,3,4,5,6,7,8,9  e.g. 2=02 3=02 4=01 5=02 6=01 7=03 8=00 9=00
+simple 0c pc=88e6e8 n=1 f=892-892 params(A1512x)=2,3,4,5,6,7,8,9  e.g. 2=02 3=02 4=01 5=02 6=01 7=02 8=00 9=00
+simple 10 pc=ff0de4 n=463 f=1535-4669 params(A1512x)=2,8,9  e.g. 2=01 8=00 9=00; 2=03; 2=00

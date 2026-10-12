@@ -94,7 +94,7 @@ Aerobiz Supersonic does its economy in plain integers, with no fixed point [AB-D
 
 ## Where the logic runs
 
-In the shipped games whose split has been traced, the 68000 runs the game logic, and Virtua Racing's physics shows why that can be the limit ([Case study: Virtua Racing Deluxe](../patterns/case-study-vr.md#where-the-time-went)). d32xr runs its logic on the Master SH-2 and shares only sight checks with the Slave. [Splitting work across three CPUs](../patterns/cpu-split.md) covers the choices.
+In most of the shipped games whose split has been traced, the 68000 runs the game logic, and Virtua Racing's physics shows why that can be the limit ([Case study: Virtua Racing Deluxe](../patterns/case-study-vr.md#where-the-time-went)). Two games put it on the SH-2s. d32xr runs its logic on the Master SH-2 and shares only sight checks with the Slave. Virtua Fighter runs a state machine per fighter, collision and the poses on the SH-2s, one fighter on each, and its 68000 sends five bytes of data a picture ([Case study: Virtua Fighter](../patterns/case-study-vf.md#the-fighters-run-on-the-sh-2s)). [Splitting work across three CPUs](../patterns/cpu-split.md) covers the choices.
 
 ## What to take away
 

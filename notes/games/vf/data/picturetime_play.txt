@@ -1,0 +1,4 @@
+pictures: 1101
+go -> COMM0 high byte seen 0 (68000 cycles): min 141650 median 172781 mean 173366 max 311389 (frames: 1.11 / 1.35 / 1.36 / 2.44)
+go -> FS flip written: min 142090 median 173221 max 311925
+histogram of go->done in tenths of a frame: [(1.1, 2), (1.2, 81), (1.3, 448), (1.4, 432), (1.5, 113), (1.6, 23), (1.9, 1), (2.4, 1)]

@@ -1,0 +1,17 @@
+main=000000 vbl=000000 first=1 last=4 frames=4
+main=88109e vbl=ff04b0 first=5 last=10 frames=6
+main=892630 vbl=ff05d0 first=11 last=12 frames=2
+main=8927b0 vbl=ff2834 first=13 last=239 frames=227
+main=88e870 vbl=ff04b0 first=240 last=240 frames=1
+main=88e870 vbl=ff05d0 first=241 last=243 frames=3
+main=88e9aa vbl=ff2834 first=244 last=475 frames=232
+main=89533a vbl=ff04b0 first=476 last=476 frames=1
+main=89533a vbl=ff05d0 first=477 last=499 frames=23
+main=895510 vbl=ff04ba first=500 last=889 frames=390
+main=881c7a vbl=ff04b0 first=890 last=964 frames=75
+main=ff111e vbl=ff04b0 first=965 last=966 frames=2
+main=ff11ae vbl=ff2a46 first=967 last=2767 frames=892
+main=ff1152 vbl=ff13ee first=968 last=2172 frames=7
+main=ff1152 vbl=ff13cc first=970 last=2766 frames=902
+main=891e70 vbl=ff05d0 first=2768 last=2794 frames=27
+main=892186 vbl=ff04ea first=2795 last=3600 frames=806

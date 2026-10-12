@@ -72,6 +72,7 @@
 - [Audio across PWM, FM and PSG](patterns/audio.md)
 - [Moving data: DMA, FIFO and ROM](patterns/streaming.md)
 - [Case study: Virtua Racing Deluxe](patterns/case-study-vr.md)
+- [Case study: Virtua Fighter](patterns/case-study-vf.md)
 - [Case study: porting Aerobiz Supersonic](patterns/case-study-aerobiz.md)
 - [Case study: After Burner Complete](patterns/case-study-afterburner.md)
 - [Case study: Star Wars Arcade](patterns/case-study-starwars.md)

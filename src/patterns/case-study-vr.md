@@ -28,7 +28,7 @@ Sources: [VRD-NOTES, master branch, analysis/SYSTEM_EXECUTION_FLOW.md; analysis/
 
 **Commands.** For each picture, by the project's count, the 68000 sends about 14 block copies to the Master and 21 pixel jobs to the Slave. In the original protocol each one was a handshake through the communication ports: write the parameters, raise a flag, wait for the SH-2 to take it, wait again for it to finish. The project calls this "submit → wait → continue": no queue of commands, no overlap between preparing the next job and running this one [VRD-NOTES, analysis/ARCHITECTURAL_BOTTLENECK_ANALYSIS.md §2-§3; SYSTEM_EXECUTION_FLOW.md §3].
 
-**Who renders.** The project's documents give the whole 3D renderer to the Slave. One of them argues that when the Master calls a routine in shared SDRAM, the Slave executes it, because the two share memory. That is not how the hardware works: a `jsr` runs on the CPU that issues it, whatever memory the code sits in, and each SH-2 has its own on-chip RAM ([Two SH-2s, one bus](../sh2/bsc.md#two-sh-2s-one-bus)). Read directly, the patched ROM looks more like Star Wars Arcade's split, with the Master transforming and the Slave filling ([Software 3D](../techniques/software-3d.md#open-questions)). The clean retail ROM settles the filling half: its span-fill routine runs on the Slave <span class="tag emulator">emulator</span>. Which CPU transforms stays open ([discrepancy 28](../appendices/discrepancies.md)).
+**Who renders.** The project's documents give the whole 3D renderer to the Slave. One of them argues that when the Master calls a routine in shared SDRAM, the Slave executes it, because the two share memory. That is not how the hardware works: a `jsr` runs on the CPU that issues it, whatever memory the code sits in, and each SH-2 has its own on-chip RAM ([Two SH-2s, one bus](../sh2/bsc.md#two-sh-2s-one-bus)). Read directly, the patched ROM looks more like Star Wars Arcade's split, with the Master transforming and the Slave filling ([Software 3D](../techniques/software-3d.md#open-questions)). The clean retail ROM settles the filling half: its span-fill routine runs on the Slave <span class="tag emulator">emulator</span>. Which CPU transforms stays open ([discrepancy 28](../appendices/discrepancies.md)), though the retail code gives both SH-2s the same transform overlay, and the sibling game Virtua Fighter shows the same back end running as a pipeline ([What this settles](case-study-vf.md#what-this-settles-in-the-virtua-racing-deluxe-chapter)).
 
 ### Compared with the retail games
 
@@ -36,6 +36,7 @@ The design the project describes is the most serialised of the 3D games in this 
 
 - **Star Wars Arcade** runs a two-stage pipeline: the Master transforms and sorts the next picture while the Slave draws this one, from double-buffered lists ([Splitting work across three CPUs](cpu-split.md#a-pipeline-geometry-on-the-master-pixels-on-the-slave)).
 - **After Burner Complete** also calls the Master once per object, but each call is a CMD interrupt that returns at once, and the Slave runs sound and never waits on the 68000 ([One call per object](../32x/communication.md#one-call-per-object)).
+- **Virtua Fighter**, from the same code base, runs the game on the SH-2s and sends one command word and five bytes a picture. Its retail code shares Virtua Racing Deluxe's Slave loop, ring protocol, cache set-up and on-chip RAM layout ([Case study](case-study-vf.md)).
 - **Virtua Racing Deluxe**, by the project's account, has the 68000 wait on every command. While the 68000 waits it does no game logic; while the SH-2s wait they draw nothing.
 
 ## Where the time went
@@ -46,7 +47,7 @@ By the project's profiles in PicoDrive, at different times and in different buil
 - **The Master idled between commands**, at 0-36% busy [VRD-NOTES, README; SYSTEM_EXECUTION_FLOW.md].
 - **The 68000 was the limit.** It had no spare time in the original game: game logic took most of the frame, and the command waits came on top [VRD-NOTES, SYSTEM_EXECUTION_FLOW.md §4].
 
-The project's own warning about these numbers is the right one: a vertical interrupt count says how often the system ticks, not how often a new picture is finished ([Counting real pictures](../howto/profiling.md#counting-real-pictures)) [VRD-NOTES, ARCHITECTURAL_BOTTLENECK_ANALYSIS.md §4]. [Profiling](../howto/profiling.md#four-traps-all-met-in-the-wild) lists the traps the project met on the way, from averaging across scenes to trusting a truncated histogram.
+The project's own warning about these numbers is the right one: a vertical interrupt count says how often the system ticks, not how often a new picture is finished ([Counting real pictures](../howto/profiling.md#counting-real-pictures)) [VRD-NOTES, ARCHITECTURAL_BOTTLENECK_ANALYSIS.md §4]. [Profiling](../howto/profiling.md#five-traps-all-met-in-the-wild) lists the traps the project met on the way, from averaging across scenes to trusting a truncated histogram.
 
 ## What the project changed
 

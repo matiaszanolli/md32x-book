@@ -51,10 +51,11 @@ A sound driver has three jobs. It **sequences** music and effects: reads note da
 |--------|-----------|-------------------|-----|--------------------------|
 | Sega's Sound Driver V3 | 68000, called once per vertical interrupt | Z80 | Z80, using all its time | System calls on the 68000 side |
 | Virtua Racing Deluxe | 68000, once per frame | 68000, holding the Z80 bus for each FM write | Z80, a 653-byte player | Three bytes at the top of sound RAM |
+| Virtua Fighter | 68000, called at the end of every vertical blank (Sega's V3) | 68000, holding the Z80 bus | None: the Z80 is parked on `DI; DI; JR $`. The Slave SH-2 plays the samples through PWM | The driver copies each tune into Z80 RAM as a data buffer; sound requests go to the Master through the ports, two bytes a picture |
 | Aerobiz Supersonic | Z80 | Z80 | — | Commands written into sound RAM, then a wait |
 | d32xr | 68000 decompresses a recorded register log (VGM) | Z80 replays the log | Z80 | Buffers in sound RAM, requests written into 68000 work RAM |
 
-Sources: [SND-V3, specifications; VRD-NOTES, analysis/SOUND_DRIVER_ARCHITECTURE.md; AB-DISASM, sound modules; D32XR, src-md/z80_vgm.s80, src-md/crt0.s, src-md/vgm.c].
+Sources: [SND-V3, specifications; VF32X, 68000 code at `$FF4000`, `$FF1006`; VRD-NOTES, analysis/SOUND_DRIVER_ARCHITECTURE.md; AB-DISASM, sound modules; D32XR, src-md/z80_vgm.s80, src-md/crt0.s, src-md/vgm.c].
 
 ### Sega's V3: sequencing on the 68000, samples on the Z80
 

@@ -37,7 +37,7 @@ When there is no source to instrument — a commercial cartridge, or a bug that 
 - **The idle/useful split needs care.** Which addresses count as "waiting" is a judgement you make from the disassembly; report the split with that list, not as a fact.
 - **Memory watches, register dumps and video captures** turn a number into a story: watching a status register over time shows the handshake; dumping frames proves the run reached the scene it profiles.
 
-## Four traps, all met in the wild
+## Five traps, all met in the wild
 
 **A hot spot that is a wait.** One profile showed the Slave spending two thirds of its cycles in one address — which disassembly revealed to be a 64-iteration delay loop. Removing it cut the Slave's measured cycles by two thirds and changed the frame rate not at all <span class="tag emulator">emulator</span> [VRD-NOTES, profiling notes]. Cycle counts measure activity, not value.
 
@@ -46,6 +46,8 @@ When there is no source to instrument — a commercial cartridge, or a bug that 
 **Truncated histograms lie confidently.** A top-200 address histogram "proved" a hook never ran; a full trace of callers showed it running at 20 Hz, below the cut <span class="tag emulator">emulator</span> [VRD-NOTES, profiling notes].
 
 **The recompiler rewrites the question.** PicoDrive's dynamic recompiler skips recognised poll loops — a CPU that is patiently waiting on a register can show almost no cycles at all — so a waiting CPU's share can look far smaller than it is. Addresses can mislead too: a busy region at `0xC0000000` looks like nothing in SDRAM or the cartridge, but it is real code in on-chip RAM, where Knuckles' Chaotix runs its sound driver ([PWM audio](../32x/pwm.md#1-the-pwm-interrupt-star-wars-arcade)). One game's Master looked like it had vanished from a profile; interpreter-mode register sampling caught it cycling through real work, polling the 32X's status bits between frames <span class="tag emulator">emulator</span> [CHAOTIX, headless runs; PICODRIVE, SH-2 DRC]. Rule: histograms and cycle splits from the interpreter; anything the recompiler reports gets cross-checked before it is quoted.
+
+**A profile that stops the game.** PicoDrive's PC profiler, run from power-on on Virtua Fighter, froze the game after about 1,300 frames: the 68000 stopped sending commands, and from then on both SH-2s sat in their wait loops, so a profile of 3,400 frames showed them 99% idle. It also samples the PC only once per 32-cycle chunk. A profile that shows almost no work should be checked against the pictures the game is making in the same run before it is believed <span class="tag emulator">emulator</span> [VF32X, headless runs].
 
 ## What the numbers look like
 

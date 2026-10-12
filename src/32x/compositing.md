@@ -31,7 +31,7 @@ What follows from that:
 
 ## How games split the work
 
-Four retail games and two of the book's projects, by what each VDP draws:
+Five retail games and two of the book's projects, by what each VDP draws:
 
 | Program | PRI | Through bits | Mega Drive draws | 32X draws |
 |---------|-----|--------------|------------------|-----------|
@@ -39,11 +39,12 @@ Four retail games and two of the book's projects, by what each VDP draws:
 | Virtua Racing Deluxe | 0 | Entry 1 only (`$8000`) | Race HUD | The 3D scene |
 | After Burner Complete | 0 | None, in play | Player's jet, HUD, crosshair | Sky and sea, ground detail, enemies, clouds, explosions |
 | Mortal Kombat II | 0 | All entries but 0 | Arena, energy bars | Fighters, foreground objects, menus |
+| Virtua Fighter | 0 | 246 of 256 entries; index 0 without | Sky and sea (plane B, re-sent every picture), HUD (plane A) | Fighters, floor, "FIGHT" and "TIME OVER" banners, "PRESS START BUTTON" |
 | Knuckles' Chaotix | 1 | Entry 0 and 122 others | The level | Characters and some objects |
 | Aerobiz Ultimate, world map | 0 | Entry 0 only | Panels and text | The map |
 | Aerobiz Ultimate, SEGA logo | 1, then 0 | | The final logo | The spinning logo |
 
-Sources: [SWA], [MK2], [AB32X], [CHAOTIX], bitmap mode register and palette read in PicoDrive, and 32X frame buffers dumped (SWA at frame 1600, MK2 at frames 900-1700, After Burner Complete at frames 300 and 700 of play, Chaotix at attract frames 4300 and 4400); [VRD-NOTES, analysis/RENDERING_PIPELINE.md §9]; [AU-NOTES, disasm/sh2/master/fb.c, disasm/32x/map_screen.asm] <span class="tag emulator">emulator</span>.
+Sources: [SWA], [MK2], [AB32X], [CHAOTIX], [VF32X, bitmap mode register and palette read in a fight at frame 1500], bitmap mode register and palette read in PicoDrive, and 32X frame buffers dumped (SWA at frame 1600, MK2 at frames 900-1700, After Burner Complete at frames 300 and 700 of play, Chaotix at attract frames 4300 and 4400); [VRD-NOTES, analysis/RENDERING_PIPELINE.md §9]; [AU-NOTES, disasm/sh2/master/fb.c, disasm/32x/map_screen.asm] <span class="tag emulator">emulator</span>.
 
 ### Mega Drive in front: HUDs and cockpits
 
