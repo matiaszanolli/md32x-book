@@ -1,6 +1,6 @@
 # The VDP
 
-The VDP (Video Display Processor, Sega part 315-5313) makes the Mega Drive's picture. It has 64 KB of video memory of its own (VRAM) and two small memories on the chip, one for colours and one for vertical scroll values. Each frame it builds the picture from small tiles laid out in tables in VRAM. Neither CPU can address any of that memory: everything goes through two ports at `$C00000` [MD-SWM §2.2; see [System architecture](architecture.md)].
+The VDP (Video Display Processor, Sega part 315-5313) makes the Mega Drive's picture. It has 64 KB of video memory of its own (VRAM) and two small memories on the chip, one for colours and one for vertical scroll values. Each frame it builds the picture from small tiles laid out in tables in VRAM. Neither CPU can address any of that memory: everything goes through two ports at `$C00000` [MD-SWM §2.2; see [System architecture](architecture.md)]. Those are the 68000's addresses. The Z80 reaches the main bus only through its bank window ([The bank window](architecture.md#the-bank-window)), so in practice the 68000 drives the VDP; the only part of it the Z80 is used for is the PSG, at `$7F11` ([The Z80 memory map](architecture.md#the-z80-memory-map)).
 
 This page explains how those ports work, which is the part every other VDP chapter relies on. It also shows what lives where in the VDP's memory, and what the chip can and cannot do. The details are in the sub-chapters listed [at the end](#where-to-go-next).
 
@@ -23,7 +23,7 @@ Planes and sprites each carry a priority bit, so a high-priority tile in plane B
 - shows 64 colours at once out of 512, as four palettes of 16 [MD-SWM §2.12];
 - can darken or brighten pixels (shadow and highlight) and can double the vertical resolution (interlace) [MD-SWM §2.11, §2.13];
 - copies data into its memories by DMA, either from 68000 memory or within VRAM, and can fill VRAM with a value [MD-SWM §2.7];
-- raises all three of the 68000's interrupts: vertical blank, a programmable line interrupt, and an external one from the controller port [MD-SWM §2.3];
+- raises three of the 68000's seven interrupt levels: vertical blank (level 6), a programmable line interrupt (level 4), and an external one from the controller port (level 2) [MD-SWM §2.3];
 - reports where the beam is through its H/V counter [MD-SWM §2.6, HV counter];
 - contains the PSG sound chip [MD-SWM §2].
 
@@ -55,7 +55,7 @@ Use word or longword accesses on the data and control ports. Sega's manual descr
 
 Everything you write to the control port is one of two things, told apart by the top two bits [MD-SWM §2.4; GENVDP §7]:
 
-**A register setting**, one word: `%100r rrrr vvvv vvvv`, with the register number in bits 12-8 and the value in bits 7-0. In hex it is `$8000 + (register << 8) + value`, so `$8174` sets register 1 to `$74` and `$8F02` sets register 15 to 2. There are 24 registers, 0 to 23; the [register chapter](vdp-registers.md) explains each bit.
+**A register setting**, one word: `%10?r rrrr vvvv vvvv`, with the register number in bits 12-8 and the value in bits 7-0. The VDP ignores bit 13 (the `?`), and register numbers 24-31 do nothing ([Registers and access](vdp-registers.md#all-24-registers)), so a constant such as `$A174` in a disassembly is register 1 too. In hex it is `$8000 + (register << 8) + value`, so `$8174` sets register 1 to `$74` and `$8F02` sets register 15 to 2. There are 24 registers, 0 to 23; the [register chapter](vdp-registers.md) explains each bit.
 
 **A memory command**, two words, which says which memory the data port should use, in which direction and from what address. The 6-bit code CD5-CD0 picks the operation, and the 16-bit address is split across both words:
 
@@ -102,7 +102,7 @@ Reading constant commands is just as useful when you study other people's code. 
 After a write command, each word written to `$C00000` goes to the current address, and the VDP then adds the value of register 15 to the address. After a read command, each word read comes from the current address in the same way [MD-SWM §2.6]:
 
 - **Set register 15 to 2** for ordinary word-by-word copying. Other values are for patterns such as writing one column of a name table (an increment of 2 × the table width).
-- **Data must match the command.** Writing after a read command, or reading after a write command, is ignored [GENVDP §7]. Sega's manual is harsher: a write after a read command only moves the address on, and a read after a write command stops the 68000 for good <span class="tag manual">manual</span> [MD-SDM §4.1].
+- **Data must match the command.** Writing after a read command, or reading after a write command, is ignored [GENVDP §7]. Sega's manual is harsher: a write after a read command only moves the address on, and a read after a write command stops the 68000 for good <span class="tag manual">manual</span> [MD-SDM §4.1]. Those are two different results for the same act, and nothing read for this book settles which is right. The advice is the same either way: never do it.
 - **No read-modify-write instructions on the data port.** `clr`, `not`, `neg`, `tas`, the bit instructions (`bset` and so on), memory shifts, and `addi`/`ori`/`subq`-style instructions on memory all read their target before writing it. Aimed at the data port, they hang the 68000 or write nothing. `tas` never writes on a Mega Drive anyway [MD-SDM §4.1]. To clear VDP memory, write a register holding 0.
 - **VRAM is reached in bytes inside the chip.** A word written to an odd VRAM address arrives with its two bytes swapped [MD-SWM §2.6; GENVDP §8]. Keep VRAM addresses even.
 - **A VRAM read needs a pause before the next command.** After reading, wait more than 116 68000 cycles during the display (more than 12 during vertical blank) before writing a new address, or the data may be wrong. A run of reads from one command is fine <span class="tag manual">manual</span> [MD-TB #15].
@@ -139,9 +139,11 @@ A VRAM slot moves one byte and a CRAM or VSRAM slot moves one word. A four-word 
 |--------|------|-------------|-------|
 | VRAM | 64 KB, addresses `$0000-$FFFF` | Any | Tiles, the plane and window name tables, the sprite table, the horizontal scroll table |
 | CRAM | 64 words, addresses `$00-$7F` | `----bbb-ggg-rrr-` | Four palettes of 16 colours, 3 bits per component |
-| VSRAM | 40 words, addresses `$00-$4F` | Scroll value in the low 10 bits (11 in interlace mode 2) | Vertical scroll for plane A and plane B, as a whole or per 2-tile column |
+| VSRAM | 40 words, addresses `$00-$4F`, on older consoles; 64 words, `$00-$7F`, from the MD2 VA4 board on | Scroll value in the low 10 bits (11 in interlace mode 2) | Vertical scroll for plane A and plane B, as a whole or per 2-tile column |
 
-Sources: [MD-SWM §2.2, §2.6, §2.8 V scroll; GENVDP §8-10]. CRAM and VSRAM addresses are byte addresses even though the memories are word-wide, so colour *n* is at CRAM address 2*n*. Address bit 0 is ignored, and writes past the end of VSRAM have no effect [GENVDP §9-10].
+Sources: [MD-SWM §2.2, §2.6, §2.8 V scroll; GENVDP §8-10]. CRAM and VSRAM addresses are byte addresses even though the memories are word-wide, so colour *n* is at CRAM address 2*n*. Address bit 0 is ignored [GENVDP §9-10].
+
+CRAM and VSRAM share one rule for the address: it has seven bits, so it counts `$00-$7F` and wraps from `$7F` to `$00`, whether it is the CPU or a DMA that is writing. A console test of DMA shows the wrap for both memories ([DMA](vdp-dma.md#cram-and-vsram)). On the older VSRAM that is only 40 words, the words from `$50` to `$7F` do not exist: a write there has no effect [GENVDP §9-10], and the address still goes on counting through them. On the later boards VSRAM fills the whole range. BlastEm models both sizes by console [BLASTEM, vdp.c `vsram_size`, systems.cfg] <span class="tag emulator">emulator</span>, and the [planes chapter](vdp-planes.md#the-left-column-fault) says which revisions differ and what that changes on screen. Whether the two sizes are really split at the MD2 VA4 board comes from that chapter's sources, not from a console test for this book.
 
 Clearing everything at start-up is three loops over those sizes. Aerobiz does it with the commands `$40000000` (32,768 words of VRAM), `$C0000000` (64 words of CRAM) and `$40000010` (40 words of VSRAM) [AB-DISASM, VDP_Init1.asm].
 
@@ -158,7 +160,7 @@ VRAM has no fixed layout. Tiles always count from address 0, 32 bytes each, and 
 | Sprite table | 5 | 512 bytes (H32) or 640 of 1 KB (H40) | `$200` (H32), `$400` (H40) |
 | Horizontal scroll table | 13 | Up to 1 KB, 896 bytes for 224 lines | `$400` |
 
-Sources: [MD-SWM §2.5, §5; GENVDP §17]. Sega's initial program, which every cartridge starts with, sets a layout that many games keep. Its register table, in Aerobiz Supersonic at ROM `$2A8`, gives [AB-DISASM, initial program; MD-SDM §2]:
+Sources: [MD-SWM §2.5, §5; GENVDP §17]. Sega's initial program, which every game that uses Sega's standard start-up code runs first, sets a layout that many games keep. Its register table, in Aerobiz Supersonic at ROM `$2A8`, gives [AB-DISASM, initial program; MD-SDM §2]:
 
 ```
 $0000-$BFFF  tiles: 1536 tiles of 32 bytes
@@ -169,7 +171,7 @@ $E000-$EFFF  plane B, 64 x 32 tiles        register 4  = $07
 $F000-$FFFF  window                        register 3  = $3C
 ```
 
-It also selects H40 with register 12 = `$81` and a 64 × 32 plane size with register 16 = `$01`. It then writes `$40000080` to the control port and a 0 to the data port. That is a VRAM fill (a DMA with CD5 set), which clears VRAM while the program goes on to set up the Z80 [AB-DISASM, initial program at `$242`]. The 11-bit tile number in a name table entry could address 2048 tiles, but the tables take the top 16 KB, so the 1536 tiles below `$C000` are the real limit in this layout. Moving or shrinking tables is how a game wins back tile space; see [Planes and scrolling](vdp-planes.md).
+It also selects H40 with register 12 = `$81` and a 64 × 32 plane size with register 16 = `$01`. It then writes `$40000080` to the control port and a 0 to the data port. That is a VRAM fill (a DMA with CD5 set), which clears VRAM while the program goes on to set up the Z80 [AB-DISASM, initial program at `$242`]. The 11-bit tile number in a name table entry could address 2048 tiles, but the tables take the top 16 KB, so the 1536 tiles below `$C000` are the largest run in this layout. The tables leave three gaps, `$D000-$D7FF`, `$DA80-$DBFF` and `$DF80-$DFFF`, 2,560 bytes in all, room for another 80 tiles (the first gap starts at tile 1664), and a game that needs more tiles looks there first. Moving or shrinking tables is how a game wins back tile space; see [Planes and scrolling](vdp-planes.md).
 
 ## Where to go next
 
@@ -188,7 +190,7 @@ It also selects H40 with register 12 = `$81` and a 64 × 32 plane size with regi
 - The VDP keeps state between writes. Read the control port before starting from an unknown state, and never let an interrupt handler change the address in the middle of a copy.
 - Keep VRAM addresses even, and keep register 15 at 2 unless you mean otherwise.
 - Do big updates in vertical blank. During the display the CPU gets only 16 or 18 slots per line.
-- VRAM is yours to lay out. Sega's default puts the tables in the top 16 KB and leaves 1536 tiles below them.
+- VRAM is yours to lay out. Sega's default puts the tables in the top 16 KB and leaves 1536 tiles below them in one run, with room for about 80 more in the gaps between the tables.
 
 ## Open questions
 
@@ -201,4 +203,5 @@ It also selects H40 with register 12 = `$81` and a 64 × 32 plane size with regi
 - [MD-TB](../appendices/bibliography.md#md-tb): #13 (word access only), #15 (VRAM read wait), #20 (VDP access from interrupts)
 - [MD-SDM](../appendices/bibliography.md#md-sdm): §2 initial program, precautions for repeated resets
 - [GENVDP](../appendices/bibliography.md#genvdp): §3 port map, §7 ports and command words, §8-10 memories, §17 registers
+- [BLASTEM](../appendices/bibliography.md#blastem): vdp.c (`vsram_size`, VSRAM reads and writes), systems.cfg
 - [AB-DISASM](../appendices/bibliography.md#ab-disasm): Sega's initial program, VDP_Init1, CmdSetupDMA, EarlyInit
