@@ -67,7 +67,13 @@ The reset-button code reads ADEN and RES to find out how far the last start got 
 
 Sources: [32X-HWM §3.2.1 p.20; 32X-OV p.34]. When the bits go back to 0 is <span class="tag disputed">disputed</span> ([discrepancy 11](../appendices/discrepancies.md)); see [The CMD interrupt](communication.md#the-cmd-interrupt).
 
-**Set one bit without clearing the other.** In both emulators a write replaces both bits, so writing `$01` while INTS is still pending withdraws the Slave's request <span class="tag emulator">emulator</span> [PICODRIVE, pico/32x/memory.c; ARES, md/m32x/io-external.cpp]. The manuals do not say what a 0 does. Raise one CPU's interrupt with `bset` on `$A15103`, or write `$03` to raise both, as d32xr does [D32XR, src-md/crt0.s].
+**Set one bit without clearing the other.** In both emulators a write replaces both bits, so writing `$01` while INTS is still pending withdraws the Slave's request <span class="tag emulator">emulator</span> [PICODRIVE, pico/32x/memory.c; ARES, md/m32x/io-external.cpp]. The manuals do not say what a 0 does.
+
+`bset` on `$A15103` keeps the other bit, but it is a read followed by a write, and the other bit can change in between. If INTS reads 1 and the Slave acknowledges its CMD before the write, the write sets INTS again and raises a second CMD that nobody sent. That assumes the bit clears when the SH-2 acknowledges, which is the likely reading but <span class="tag disputed">disputed</span> ([discrepancy 11](../appendices/discrepancies.md)). Three forms are safe:
+
+- **Raise one CPU's CMD only when the other's request is known not to be pending**, for example because the 68000 waited for that bit to read 0 after its last command, as After Burner Complete and Knuckles' Chaotix do ([The CMD interrupt](communication.md#the-cmd-interrupt)). Star Wars Arcade raises CMD with `bclr` and `bset` on bit 0 but never sends anything to the Slave, so INTS is never set while it does [SWA, 68000 code at `$086B80`-`$086B8A`].
+- **Make every CMD handler harmless when it finds no command waiting** in its port, so a spurious CMD costs only the time to look.
+- **Raise both at once by writing `$03`**, as d32xr does [D32XR, src-md/crt0.s]. A plain write has no read, so there is nothing to race with.
 
 ### $A15104: bank set
 
@@ -128,7 +134,13 @@ Sources: [32X-HWM §3.2.2 p.26 (scan); 32X-OV p.40]. All bits except ADEN and CA
 
 **The boot ROMs read the top byte.** The Master's boot ROM tests ADEN to tell power-on (ADEN = 0) from a real start, tests CART to choose between the cartridge and the Mega-CD path, and on a failed security check writes `$80` to `0x20004000` to take the VDP away from the 68000 [VRD-NOTES, 32X BIOS dump, Master `$018C`, `$021E`, `$024C`]. See [Boot](boot.md).
 
-**Write the mask with a byte write to `0x20004001`.** A word write also writes FM. If the 68000 changed FM between your read and your write, the word write puts the old owner back. Mortal Kombat II and After Burner Complete's Master write the low byte alone. After Burner Complete's Slave writes the word `$8203`, which takes FM for the SH-2s in the same write. Star Wars Arcade reads the word, sets one bit and writes the word back [MK2, SH-2 code at `0x060002B6`, `0x0600516C`; AB32X, SH-2 code at `0x06000244`, `0x06002168`; SWA, SH-2 code at `0x0600093C`, `0x06000F2E`].
+**Write the mask with a byte write to `0x20004001`.** A word write also writes FM. If the 68000 changed FM between your read and your write, the word write puts the old owner back. Mortal Kombat II and After Burner Complete's Master write the low byte alone. After Burner Complete's Slave writes the word `$8203`, which takes FM for the SH-2s in the same write. Star Wars Arcade reads the word, sets one bit and writes the word back, which is the dangerous form [MK2, SH-2 code at `0x060002B6`, `0x0600516C`; AB32X, SH-2 code at `0x06000244`, `0x06002168`; SWA, SH-2 code at `0x0600093C`, `0x06000F2E`]. In that game it does no harm, and the code shows why:
+
+- **FM changes once.** The SH-2 code writes FM only with byte ORs of `$80`, which set it to 1 and can never clear it: once in the Master's start-up (`0x06000DEE`) and once in a Slave command routine (`0x06000B1C`), which finds it already set. Neither VRES handler writes the mask word. The 68000 never writes FM after Sega's initial program: outside the header and the initial program, its only references to the 32X registers are four routines that use `$A15100` as a base with offsets `$03`, `$06`-`$12` and `$20`-`$2F`, never `$00` or `$01`, and that includes the per-command routines the command sender calls with the base still loaded [SWA, SH-2 code at `0x06000584`-`0x0600064A`, `0x06000B1C`-`0x06000B26`, `0x06000DEE`-`0x06000DF4`; 68000 code at `$086B40`-`$086D4C`].
+- **Each mask is written once, during start-up.** The two read-modify-writes are each called from one place, before each CPU's main loop (`0x06000740`, `0x06000DFE`).
+- **The start-up is ordered.** The Master takes FM and sets its own mask, and only then clears COMM0 (`0x06000E04`); the Slave waits for that 0 before it changes its mask [SWA, SH-2 code at `0x06000DE4`-`0x06000E06`, `0x06000734`-`0x06000740`].
+
+So neither read-modify-write can overlap a change of FM. The argument rests on searches of the ROM for the register's address and of the code that loads it. An address built by arithmetic in a register would not show in such a search, so it is as strong as that search, no stronger. A program whose 68000 or SH-2s change FM after start-up, or that rewrites its masks during the game, cannot rely on it.
 
 **HEN is shared, so either SH-2 can change it for both.** A byte write to the low byte always writes HEN too. If the Master has set HEN and the Slave later writes its own mask as a constant with bit 7 at 0, H interrupts during vertical blank stop for both CPUs. A program that uses HEN should include it in every mask value it writes, on both CPUs.
 
@@ -142,7 +154,7 @@ What the retail games enable [MK2; AB32X; SWA, as above]:
 | After Burner Complete | `$02`: CMD | `$03`: CMD and PWM, with FM = 1 in the same word write |
 | Star Wars Arcade | CMD | PWM |
 
-None of the three ever enables the H interrupt. Sega's Mars Check Program does, and its expected counts show what Sega meant the bits to do. It counts each SH-2's interrupts over 30 frames [MARS-CHECK, 68000 code at `$3D4C`-`$4222`; SH-2 code at `0x06000DF8`-`0x06000E86`]:
+None of the three ever enables the H interrupt, and neither does Knuckles' Chaotix, which uses H count as a command byte between its two SH-2s instead ([Between the two SH-2s](communication.md#between-the-two-sh-2s)). BC Racers, whose dump cannot be checked against its header, does: its Master writes `$0E` (V, H and CMD) with H count 0, so it takes an H interrupt on every displayed line, whose handler only adds 1 to a counter that no code reads ([Case study: BC Racers](../patterns/case-study-bcracers.md#one-picture)) [BCR, SH-2 code at `0x06001850`, `0x060019E4`-`0x06001A00`]. Sega's Mars Check Program enables it too, and its expected counts show what Sega meant the bits to do. It counts each SH-2's interrupts over 30 frames [MARS-CHECK, 68000 code at `$3D4C`-`$4222`; SH-2 code at `0x06000DF8`-`0x06000E86`]:
 
 | Mask written | H count | Expected per frame | Accepted range per frame |
 |--------------|---------|--------------------|--------------------------|
@@ -171,7 +183,7 @@ Sources: [32X-HWM §3.2.2 p.27 (scan)]. One register, shared by both SH-2s, as H
 
 **With HEN = 0, nothing comes during vertical blank.** The count goes on from the start of the next frame.
 
-The emulators are weakest here. PicoDrive schedules H interrupts by time, every (*n* + 1) × 488.5 68000 clocks, not from real horizontal blanks, and its source calls the 32X H interrupt useless in practice. Ares counts real horizontal blanks but restarts the count as soon as the register is written <span class="tag emulator">emulator</span> [PICODRIVE, pico/32x/32x.c; ARES, md/m32x/m32x.cpp, io-internal.cpp]. PicoDrive's source also notes that games use H count as one more shared byte between the two SH-2s, which works because both can read and write it [PICODRIVE, pico/32x/memory.c]. Do that only in a program that never enables H interrupts.
+The emulators are weakest here. PicoDrive schedules H interrupts by time, every (*n* + 1) × 488.5 68000 clocks, not from real horizontal blanks, and its source calls the 32X H interrupt useless in practice. Ares counts real horizontal blanks but restarts the count as soon as the register is written <span class="tag emulator">emulator</span> [PICODRIVE, pico/32x/32x.c; ARES, md/m32x/m32x.cpp, io-internal.cpp]. PicoDrive's source also notes that games use H count as one more shared byte between the two SH-2s, which works because both can read and write it [PICODRIVE, pico/32x/memory.c]. Knuckles' Chaotix is one of them [CHAOTIX, SH-2 code at `0x060002D4`-`0x060002E8`]. Do that only in a program that never enables H interrupts.
 
 ### 0x20004006-0x20004012: the SH-2's view of DREQ
 
@@ -212,7 +224,7 @@ The 32X VDP's registers sit at `$A15180-$A1518B` for the 68000 and `0x20004100-0
 | Bit | Name | R/W | Meaning |
 |-----|------|-----|---------|
 | 15 | PAL | Read only | 0 = PAL console, 1 = NTSC |
-| 7 | PRI | R/W | 0 = Mega Drive in front, 1 = 32X in front ([Compositing](compositing.md)) |
+| 7 | PRI | R/W | By default 0 = Mega Drive in front, 1 = 32X in front; a colour's through bit reverses it for that colour ([The rule for each pixel](compositing.md#the-rule-for-each-pixel)) |
 | 6 | 240 | R/W | 1 = 240 lines. PAL only |
 | 1-0 | M1, M0 | R/W | 00 blank, 01 packed pixel, 10 direct colour, 11 run length |
 
@@ -233,17 +245,19 @@ The 32X VDP's registers sit at `$A15180-$A1518B` for the 68000 and `0x20004100-0
 | 15 | VBLK | Read only | 1 = in vertical blank |
 | 14 | HBLK | Read only | 1 = in horizontal blank |
 | 13 | PEN | Read only | 1 = the palette may be accessed |
-| 1 | FEN | Read only | 1 = the frame buffer may not be accessed (a fill is running, or a refresh) |
+| 1 | FEN | Read only | 1 = a fill is running or a refresh is in progress. Only the fill forbids access |
 | 0 | FS | R/W | Which buffer is displayed; a write during display takes effect at the next vertical blank |
 
-Sources: [32X-HWM §3.2.3; §3.3]. Every bit except FS and PAL takes effect from the next line [32X-HWM §3.3, register latch timing].
+Sources: [32X-HWM §3.2.3; §3.3]. FEN reads 1 for 40 clocks during each DRAM refresh, but the manual says the DRAM can still be accessed then; only a running fill shuts the frame buffer [32X-HWM §3.3, register latch timing] ([Auto fill](vdp.md#auto-fill)).
+
+The settings that shape the display, the bitmap mode register (PRI, 240, M1 M0) and the shift bit, are latched once a line and take effect from the next line. The manual states this rule for "VDP registers" without listing them [32X-HWM §3.3, register latch timing], but it cannot cover the rest: FS waits for the next vertical blank, writing the auto fill data register starts the fill at once, and VBLK, HBLK, PEN, FEN and PAL only report state.
 
 ## Shared registers and simultaneous writes
 
 | Register | Written by | When two write at once |
 |----------|------------|------------------------|
 | FM | The 68000 and either SH-2 | The last write wins at once, even against an access in progress [32X-HWM pp.19, 26] |
-| Communication ports | All three CPUs | Undefined if the 68000 and an SH-2 write the same word at the same moment [32X-HWM §3.2.1] |
+| Communication ports | All three CPUs | Undefined if the 68000 and an SH-2 write the same word at the same moment, or if one writes it while the other reads it [32X-HWM §3.2.1; §3.3 p.67] ([The one hazard](communication.md#the-one-hazard-a-word-that-changes-while-you-read-it)) |
 | PWM control | 68000: bits 3-0. SH-2: all | Not documented. Keep PWM to one CPU |
 | PWM cycle and pulse widths | All three | Not documented |
 | INTM, INTS | The 68000 sets them | [Disputed](../appendices/discrepancies.md) how they clear |
@@ -252,7 +266,7 @@ Sources: [32X-HWM §3.2.3; §3.3]. Every bit except FS and PAL takes effect from
 | Mask bits 3-0, interrupt clears | Each SH-2 its own | Separate per CPU |
 | VDP registers, palette, frame buffer | The side that owns FM | The manual says the other side waits for FM; emulators drop its writes ([discrepancy 34](../appendices/discrepancies.md)) |
 
-The two SH-2s cannot write at the same moment: they share one bus and take turns, one access at a time [32X-HWM §2.2]. So the only real collisions are between the 68000 and an SH-2, and the manual names only the communication ports and FM. A protocol that gives every shared word one writer at a time never meets the undefined case ([The one hazard](communication.md#the-one-hazard-a-word-that-changes-while-you-read-it)).
+The two SH-2s cannot write at the same moment: they share one bus and take turns, one access at a time [32X-HWM §2.2]. So the only real collisions are between the 68000 and an SH-2, and the manual names only the communication ports (a write against a write or a read) and FM. A protocol that gives every shared word one writer at a time never meets the undefined case ([The one hazard](communication.md#the-one-hazard-a-word-that-changes-while-you-read-it)).
 
 ## In emulators
 
@@ -275,7 +289,7 @@ Sources: [PICODRIVE, pico/32x/memory.c, 32x.c; ARES, md/m32x/io-external.cpp, io
 
 - The 68000 and the SH-2s see the same offsets but different registers below `$20`. Only the ports and PWM are the same registers on both sides.
 - Leave ADEN, RES, the standby register and SEGA TV alone. They belong to the boot.
-- Raise CMD with `bset`, so you do not withdraw the other CPU's request.
+- Raise CMD without withdrawing the other CPU's request, and without the `bset` race that can raise a second one: `bset` only when the other request is known not to be pending, or `$03` for both.
 - On the SH-2, write the interrupt mask as a byte at `0x20004001`, and carry HEN in every value if you use it.
 - Change H count during vertical blank and expect one interrupt at the old spacing.
 - Read RV as a word, or as the byte at `0x20004007`, never the byte at `0x20004006`.
@@ -294,7 +308,9 @@ Sources: [PICODRIVE, pico/32x/memory.c, 32x.c; ARES, md/m32x/io-external.cpp, io
 - [32X-INTRO](../appendices/bibliography.md#32x-intro): adapter control register
 - [32X-SUP2](../appendices/bibliography.md#32x-sup2): register equates
 - [VRD-NOTES](../appendices/bibliography.md#vrd-notes): 32X BIOS dump (Master `$018C`-`$024C`); ROM (initial program, `$418`, `$4C0`, `$6F8`)
-- [SWA](../appendices/bibliography.md#swa): SH-2 code at `0x06000588`, `0x0600093C`, `0x06000F2E`
+- [SWA](../appendices/bibliography.md#swa): SH-2 code at `0x06000584`-`0x0600064A`, `0x06000734`-`0x06000740`, `0x0600093C`, `0x06000B1C`-`0x06000B26`, `0x06000DE4`-`0x06000E06`, `0x06000F2E`; 68000 code at `$086B40`-`$086D4C`
+- [CHAOTIX](../appendices/bibliography.md#chaotix): SH-2 code at `0x060002D4`-`0x060002E8`
+- [BCR](../appendices/bibliography.md#bcr): SH-2 code at `0x06001850`, `0x060019E4`-`0x06001A00`
 - [MK2](../appendices/bibliography.md#mk2): SH-2 code at `0x060002B6`, `0x06000356`, `0x0600516C`
 - [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x06000244`, `0x0600029C`, `0x06002168`, `0x06002272`
 - [D32XR](../appendices/bibliography.md#d32xr): 32x.h, marshw.c, src-md/crt0.s
