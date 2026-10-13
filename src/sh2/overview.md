@@ -20,7 +20,7 @@ The 32X has two Hitachi SH7604s. Each is an SH-2 CPU core with cache, multiplier
 
 Sources: [SH7604 §1.1; 32X-HWM §3.3, clock; 32X-OV, dual SH2's].
 
-**The user break controller** has no chapter because no program in the sources uses it for breakpoints. On a console it could serve as a hardware watchpoint: it can raise an interrupt when the CPU or the DMA touches a chosen address [SH7604 §6.1; §4, Tables 4.3, 4.8]. This has not been tried on a 32X. One retail game does use its registers, though not as breakpoints. After Burner Complete's Slave keeps the read and write positions of its sound ring buffer in BARAH and BARAL (`0xFFFFFF40`, `0xFFFFFF42`) and a sample counter in BARBH (`0xFFFFFF60`). With the bus cycle registers at their reset value 0, no break condition can match, so these are spare on-chip words the Slave reads without a bus cycle [SH7604 §6.1.3; AB32X, SH-2 code at `0x0600032E`, `0x060003C0`, `0x06000390`].
+**The user break controller** has no chapter because no program in the sources uses it for breakpoints. On a console it could serve as a hardware watchpoint: it can raise an interrupt when the CPU or the DMA touches a chosen address [SH7604 §6.1; §4, Tables 4.3, 4.8]. This has not been tried on a 32X. One retail game does use its registers, though not as breakpoints. After Burner Complete's Slave keeps the read and write positions of its sound ring buffer in BARAH and BARAL (`0xFFFFFF40`, `0xFFFFFF42`) and a sample counter in BARBH and BARBL, read and written as one longword at `0xFFFFFF60`. With the bus cycle registers at their reset value 0, no break condition can match, so these are spare on-chip words the Slave reads and writes without using the shared bus [SH7604 §6.1.3; AB32X, SH-2 code at `0x0600032E`-`0x06000334`, `0x06000390`-`0x0600039C`, `0x060003C0`-`0x060003DC`]. That is the point of the trick: an access to an on-chip register never goes out on the bus the two SH-2s share, so it never waits for the Master and never delays it [SH7604 §7.10] ([Two SH-2s, one bus](bsc.md#two-sh-2s-one-bus)).
 
 ## How the 32X wires the chip
 
@@ -56,7 +56,7 @@ The SH-2 uses the top three bits of an address to choose what an access does: ca
 | Do not change the standby control register (`0xFFFFFE91`) | Same list. It can stop on-chip modules and put the chip in standby | [Cache](cache.md#the-control-register) |
 | Do not use the watchdog's reset mode | | [Timers](timers.md#the-watchdog-timer) |
 | Do not use `SLEEP` | Not given. The boot ROMs use it while waiting for the 68000; no game in the sources does | [Registers and instruction set](isa.md) |
-| Do not reset the 32X manually; NMI is tied high | | [Boot](../32x/boot.md#pressing-reset) |
+| Do not reset the 32X manually | NMI is tied high | [Boot](../32x/boot.md#pressing-reset) |
 | Leave the FRT alone after setting it up as Sega specifies | It carries the interrupt workaround | [Timers](timers.md#what-sega-asks-for-and-what-games-do) |
 | Flip TOCR bit 1 in every interrupt handler | The SH-2 interrupt flaw | [Interrupt controller](intc.md#segas-rules-the-sh-2-interrupt-flaw) |
 | Do not use TAS <span class="tag disputed">disputed</span> ([row 12](../appendices/discrepancies.md)) | Not given | [Communication](../32x/communication.md#between-the-two-sh-2s) |
@@ -69,10 +69,11 @@ Sources: [32X-HWM §5.3 pp.87-89; 32X-SUP2].
 In rough order of how much they cost a typical 32X program:
 
 1. **Cache misses and the shared bus.** A missed line costs 12 clocks from SDRAM and up to 136 from cartridge ROM. While one SH-2 fills a line, the other waits for the bus. Keep hot code and data in SDRAM and in the cache, and keep the two CPUs' working sets apart. See [Bus controller](bsc.md) and [Cache](cache.md).
-2. **Stale data between the CPUs.** This is not slowness but wrong results. The cache never sees the other SH-2's writes or the DMA's. See [Keeping the views in step](cache.md#keeping-the-views-in-step).
-3. **Frame buffer and register accesses.** A frame buffer read takes 7 to 14 clocks. Writes go through the one-entry write buffer and are cheap only when spaced out. See [What a 16-bit bus costs](bsc.md#what-a-16-bit-bus-costs).
-4. **Divides, and shifts gcc turns into library calls.** A `DIVU` divide costs 39 clocks unless it overlaps other work. A signed `>> 8` in C becomes a function call. See [Division unit](divu.md) and [Shifts without a barrel shifter](isa.md#shifts-without-a-barrel-shifter).
-5. **Pipeline details.** Loads used too soon, multiplies read too soon, memory accesses colliding with fetches. These are worth a clock or two each, but they add up in inner loops. See [Pipeline](pipeline.md).
+2. **Frame buffer and register accesses.** A frame buffer read takes 7 to 14 clocks. Frame buffer writes go into the 32X's own write buffer, which the manual gives as four words: 3 clocks a write while it has room, 5 once it is full, so writes are cheap only in short runs or spaced out <span class="tag disputed">disputed</span> ([discrepancy 4](../appendices/discrepancies.md)). Its FULL and EMPT bits are in `0x20004006`. It is a different buffer from the SH-2's own one-entry write buffer in the bus controller, which every external write passes through first. See [Writing from the SH-2](../32x/vdp.md#writing-from-the-sh-2) and [What a 16-bit bus costs](bsc.md#what-a-16-bit-bus-costs).
+3. **Divides, and shifts gcc turns into library calls.** A `DIVU` divide costs 39 clocks unless it overlaps other work. With sh-elf-gcc 13.2 (`-m2 -O2`; 15.1 and 16.2 do the same), a signed `>> 8` in C becomes a call to a library routine. See [Division unit](divu.md) and [Shifts without a barrel shifter](isa.md#shifts-without-a-barrel-shifter).
+4. **Pipeline details.** Loads used too soon, multiplies read too soon, memory accesses colliding with fetches. These are worth a clock or two each, but they add up in inner loops. See [Pipeline](pipeline.md).
+
+One hazard matters more than anything on this list, and it is not a cost. **Stale data between the CPUs gives wrong results, not slow ones.** The cache never sees the other SH-2's writes or the DMA's, so a CPU reading through it can act on old values. See [Keeping the views in step](cache.md#keeping-the-views-in-step).
 
 ## In emulators
 
@@ -93,7 +94,7 @@ So neither emulator can confirm timing, and only Ares shows cache bugs. Claims i
 
 ## Reading order
 
-For someone new to the SH-2: [Registers and instruction set](isa.md), then [Cache](cache.md) and [Bus controller](bsc.md), which decide most performance questions, then [Interrupt controller](intc.md) for Sega's workaround. Read the rest when the need arises: the [DMA controller](dmac.md) for the FIFO and copying, the [Division unit](divu.md) and [Pipeline](pipeline.md) for inner loops, [Timers](timers.md) for profiling, the [Serial port](sci.md) for SH-2 to SH-2 signalling.
+For someone new to the SH-2: [Registers and instruction set](isa.md), then [Cache](cache.md) and [Bus controller](bsc.md), which decide most performance questions, then [Interrupt controller](intc.md) for Sega's workaround. Read the rest when the need arises: the [DMA controller](dmac.md) for the FIFO and copying, the [Division unit](divu.md) and [Pipeline](pipeline.md) for inner loops, [Timers](timers.md#keeping-time-on-the-32x) for a profiling clock, which means the watchdog in interval mode, as d32xr uses it (the FRT stays as Sega sets it, and its counter is no clock anyway: with those settings it clears on every compare match and only counts 0, 1), the [Serial port](sci.md) for SH-2 to SH-2 signalling.
 
 ## Sources
 
@@ -104,4 +105,4 @@ For someone new to the SH-2: [Registers and instruction set](isa.md), then [Cach
 - [32X-TB27](../appendices/bibliography.md#32x-tb27): FTOA as IRL0
 - [32X-SVC](../appendices/bibliography.md#32x-svc): §7-3, SH-2 pin wiring
 - [32X-TIA1](../appendices/bibliography.md#32x-tia1): pp.4, 6
-- [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x0600032E`, `0x060003C0`
+- [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x0600032E`-`0x06000334`, `0x06000390`-`0x0600039C`, `0x060003C0`-`0x060003DC`
