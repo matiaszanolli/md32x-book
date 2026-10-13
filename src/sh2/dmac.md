@@ -33,7 +33,7 @@ Sources: [SH7604 §9.1.1, §9.2, §7.11.2].
 | DRCR0, DRCR1 | `0xFFFFFE71`, `0xFFFFFE72` | 8 | What a channel's requests come from: 0 = its DREQ line, 1 or 2 = the serial port |
 | DMAOR | `0xFFFFFFB0` | 32 | Shared by both channels (below) |
 
-Source: [SH7604 §9.1.4]. Access DRCR0 and DRCR1 as bytes and everything else as longwords. Sega's register equates for the 32X put DRCR at `0xFFFFFFB4` and `0xFFFFFFB8` and list two extra vector registers; the SH7604 manual, d32xr and PicoDrive all use `0xFFFFFE71` and `0xFFFFFE72` <span class="tag disputed">disputed</span> [32X-SUP2, equates; D32XR, 32x.h; PICODRIVE, pico/32x/sh2soc.c; [discrepancy 19](../appendices/discrepancies.md)].
+Source: [SH7604 §9.1.4]. Access DRCR0 and DRCR1 as bytes and everything else as longwords. Sega's register equates for the 32X put DRCR at `0xFFFFFFB4` and `0xFFFFFFB8` and list two extra vector registers; the SH7604 manual, d32xr and PicoDrive all use `0xFFFFFE71` and `0xFFFFFE72` [32X-SUP2, equates; D32XR, 32x.h; PICODRIVE, pico/32x/sh2soc.c]. The equates are wrong for the SH7604; they may describe an earlier revision of the chip.
 
 ### CHCR: one channel's settings
 

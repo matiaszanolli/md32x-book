@@ -119,7 +119,7 @@ Some things in this table are worth spelling out:
 
 ## The 68000 memory map
 
-The 68000's view changes during boot. At power-on the machine looks almost like a plain Mega Drive. Sega's initial program, a fixed 1040-byte block at `$0003F0`-`$0007FF`, then switches the adapter on by setting ADEN, and after that the map is different [32X-HWM §5]. All 31 retail cartridges in the sources carry that block byte for byte the same ([Sega's sample code in the games](../appendices/sample-code.md#segas-samples)) [32X-ROMSET; MK2; MCX]. One page of the manual gives the start as `$3FA` instead. The reset vector of all 31 points to `$0003F0` <span class="tag disputed">disputed</span> [32X-HWM §3.1 p.13; 32X-ROMSET; MK2; MCX, cartridge `$000004`; [discrepancy 3](../appendices/discrepancies.md)]. See [Boot, security code and initial program](boot.md).
+The 68000's view changes during boot. At power-on the machine looks almost like a plain Mega Drive. Sega's initial program, a fixed 1040-byte block at `$0003F0`-`$0007FF`, then switches the adapter on by setting ADEN, and after that the map is different [32X-HWM §5]. All 31 retail cartridges in the sources carry that block byte for byte the same ([Sega's sample code in the games](../appendices/sample-code.md#segas-samples)) [32X-ROMSET; MK2; MCX]. One page of the manual gives the start as `$3FA` instead. The reset vector of all 31 points to `$0003F0` [32X-HWM §3.1 p.13; 32X-ROMSET; MK2; MCX, cartridge `$000004`]. See [Boot, security code and initial program](boot.md).
 
 ### At power-on (ADEN = 0)
 
@@ -130,7 +130,7 @@ The cartridge sits at `$000000-$3FFFFF` as usual and everything else is Mega Dri
 | `$A130EC` | The four ASCII bytes `MARS`, present only when a 32X is attached |
 | `$A15100` | 32X system registers |
 
-The March 1994 hardware manual gives the ID address as `$A130FC`, and two Sega overviews from April 1994 repeat it. That address is wrong. Sega's initial program compares the ID at `$A130EC`, and every cartridge that boots must carry that program unchanged (see [Boot](boot.md#the-security-check)). The compare, `cmpi.l #'MARS',$30EC(a5)` with a5 = `$A10000`, sits at cartridge `$00040C` inside that block, so it is the same in all 31 retail cartridges <span class="tag disputed">disputed</span> [32X-OV p.29; 32X-INTRO p.29; 32X-HWM Figure 3.1 p.13; 32X-ROMSET; MK2; MCX, cartridge `$00040C`; [discrepancy 2](../appendices/discrepancies.md)].
+The March 1994 hardware manual gives the ID address as `$A130FC`, and two Sega overviews from April 1994 repeat it. That address is wrong. Sega's initial program compares the ID at `$A130EC`, and every cartridge that boots must carry that program unchanged (see [Boot](boot.md#the-security-check)). The compare, `cmpi.l #'MARS',$30EC(a5)` with a5 = `$A10000`, sits at cartridge `$00040C` inside that block, so it is the same in all 31 retail cartridges [32X-OV p.29; 32X-INTRO p.29; 32X-HWM Figure 3.1 p.13; 32X-ROMSET; MK2; MCX, cartridge `$00040C`].
 
 ### After the 32X is switched on (ADEN = 1)
 

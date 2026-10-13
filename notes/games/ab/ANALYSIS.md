@@ -123,7 +123,7 @@ Master profile, 2,000 play frames: FEN wait 44%, scaled blit loops about 45%, sp
 ## System registers (checked 2026-10-04)
 
 - Master mask: byte `$02` (CMD) to `0x20004001` at `0x06002168`. Slave: word `$8203` to `0x20004000` at `0x06000244` (FM = 1, CMD and PWM; bit 9 is read only). No H count writes, no H interrupt.
-- Both VRES handlers (Slave `0x06000296`, Master `0x06002266`) clear VRES, read back, then `mov.b @(6,r1),r0` / `tst #1`: the byte at `0x20004006` (frame buffer FIFO status), i.e. register bit 8, not RV (bit 0, byte `0x20004007` per 32X-SUP2 `dreqctl` = 7). Bit 8 reads 0 in PicoDrive and Ares, so the RV = 1 reset path never runs there. Book: `src/32x/registers.md`, discrepancy 33.
+- Both VRES handlers (Slave `0x06000296`, Master `0x06002266`) clear VRES, read back, then `mov.b @(6,r1),r0` / `tst #1`: the byte at `0x20004006` (frame buffer FIFO status), i.e. register bit 8, not RV (bit 0, byte `0x20004007` per 32X-SUP2 `dreqctl` = 7). Bit 8 reads 0 in PicoDrive and Ares, so the RV = 1 reset path never runs there. Book: `src/32x/registers.md`, `src/32x/bugs.md` (Reset while RV = 1; was discrepancy 33, settled and removed 2026-10-13).
 - No 68000 write sets RV (searched `bset`/`move` forms on offsets 6/7 from `$A15100`, absolute `$A15106/7`, and calls to the vector ROM routines at `$C0`/`$D4`), so the broken RV check above never matters. Book: `src/32x/bugs.md`.
 
 ## Cartridge banking (checked 2026-10-05)

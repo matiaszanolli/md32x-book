@@ -12,7 +12,7 @@ The 32X has two Hitachi SH7604s. Each is an SH-2 CPU core with cache, multiplier
 | Bus state controller (BSC) | Drives the external bus: four areas, wait states, SDRAM, refresh, bus sharing | Set up by the boot ROM; programs may not change it | [Bus controller](bsc.md) |
 | DMA controller (DMAC) | Two channels that copy memory without the CPU | Channel 0 drains the 68000 FIFO; PWM can request channel 1 | [DMA controller](dmac.md) |
 | Division unit (DIVU) | 32/32 and 64/32 signed divide in 39 clocks, alongside the CPU | Free to use | [Division unit](divu.md) |
-| Free-running timer (FRT) | 16-bit counter with two compare outputs | Reserved for Sega's interrupt workaround and the VRES reset | [Timers](timers.md) |
+| Free-running timer (FRT) | 16-bit counter with two compare outputs | Reserved for Sega's interrupt workaround and the VRES reset. Set up as Sega asks, it clears on every compare match and only counts to 1 or 2, so it is no clock ([discrepancy 20](../appendices/discrepancies.md)) | [Timers](timers.md) |
 | Watchdog timer (WDT) | 8-bit counter, interval or reset mode | Interval mode only | [Timers](timers.md#the-watchdog-timer) |
 | Interrupt controller (INTC) | Priorities and vectors for external and on-chip interrupts | The 32X's five interrupts arrive on its external lines | [Interrupt controller](intc.md) |
 | Serial port (SCI) | Asynchronous or clocked serial | Wired only to the other SH-2 | [Serial port](sci.md) |
@@ -69,7 +69,7 @@ Sources: [32X-HWM §5.3 pp.87-89; 32X-SUP2].
 In rough order of how much they cost a typical 32X program:
 
 1. **Cache misses and the shared bus.** A missed line costs 12 clocks from SDRAM and up to 136 from cartridge ROM. While one SH-2 fills a line, the other waits for the bus. Keep hot code and data in SDRAM and in the cache, and keep the two CPUs' working sets apart. See [Bus controller](bsc.md) and [Cache](cache.md).
-2. **Frame buffer and register accesses.** A frame buffer read takes 7 to 14 clocks. Frame buffer writes go into the 32X's own write buffer, which the manual gives as four words: 3 clocks a write while it has room, 5 once it is full, so writes are cheap only in short runs or spaced out <span class="tag disputed">disputed</span> ([discrepancy 4](../appendices/discrepancies.md)). Its FULL and EMPT bits are in `0x20004006`. It is a different buffer from the SH-2's own one-entry write buffer in the bus controller, which every external write passes through first. See [Writing from the SH-2](../32x/vdp.md#writing-from-the-sh-2) and [What a 16-bit bus costs](bsc.md#what-a-16-bit-bus-costs).
+2. **Frame buffer and register accesses.** A frame buffer read takes 7 to 14 clocks. Frame buffer writes go into the 32X's own write buffer, which the manual gives as four words: 3 clocks a write while it has room, 5 once it is full, so writes are cheap only in short runs or spaced out <span class="tag disputed">disputed</span> ([discrepancy 4](../appendices/discrepancies.md)). Both Sega manuals put its FULL and EMPT bits in `0x20004006` <span class="tag disputed">disputed</span> ([discrepancy 32](../appendices/discrepancies.md)). It is a different buffer from the SH-2's own one-entry write buffer in the bus controller, which every external write passes through first [SH7604 §7.11.2]. See [Writing from the SH-2](../32x/vdp.md#writing-from-the-sh-2) and [What a 16-bit bus costs](bsc.md#what-a-16-bit-bus-costs).
 3. **Divides, and shifts gcc turns into library calls.** A `DIVU` divide costs 39 clocks unless it overlaps other work. With sh-elf-gcc 13.2 (`-m2 -O2`; 15.1 and 16.2 do the same), a signed `>> 8` in C becomes a call to a library routine. See [Division unit](divu.md) and [Shifts without a barrel shifter](isa.md#shifts-without-a-barrel-shifter).
 4. **Pipeline details.** Loads used too soon, multiplies read too soon, memory accesses colliding with fetches. These are worth a clock or two each, but they add up in inner loops. See [Pipeline](pipeline.md).
 
@@ -94,15 +94,16 @@ So neither emulator can confirm timing, and only Ares shows cache bugs. Claims i
 
 ## Reading order
 
-For someone new to the SH-2: [Registers and instruction set](isa.md), then [Cache](cache.md) and [Bus controller](bsc.md), which decide most performance questions, then [Interrupt controller](intc.md) for Sega's workaround. Read the rest when the need arises: the [DMA controller](dmac.md) for the FIFO and copying, the [Division unit](divu.md) and [Pipeline](pipeline.md) for inner loops, [Timers](timers.md#keeping-time-on-the-32x) for a profiling clock, which means the watchdog in interval mode, as d32xr uses it (the FRT stays as Sega sets it, and its counter is no clock anyway: with those settings it clears on every compare match and only counts 0, 1), the [Serial port](sci.md) for SH-2 to SH-2 signalling.
+For someone new to the SH-2: [Registers and instruction set](isa.md), then [Cache](cache.md) and [Bus controller](bsc.md), which decide most performance questions, then [Interrupt controller](intc.md) for Sega's workaround. Read the rest when the need arises: the [DMA controller](dmac.md) for the FIFO and copying, the [Division unit](divu.md) and [Pipeline](pipeline.md) for inner loops, [Timers](timers.md#keeping-time-on-the-32x) for a profiling clock: the watchdog in interval mode, as d32xr uses it [D32XR, marsnew.c, marshw.c, crt0.s], the [Serial port](sci.md) for SH-2 to SH-2 signalling.
 
 ## Sources
 
-- [SH7604](../appendices/bibliography.md#sh7604): §1.1, §3.2.2, §3.3, §3.4, §4 Tables 4.3 and 4.8, §6.1, §7.1.5, §8.3
+- [SH7604](../appendices/bibliography.md#sh7604): §1.1, §3.2.2, §3.3, §3.4, §4 Tables 4.3 and 4.8, §6.1, §6.1.3, §7.1.5, §7.10, §7.11.2, §8.3
 - [32X-HWM](../appendices/bibliography.md#32x-hwm): §3.1, §3.2.2, §3.3, §5.3 pp.87-89, p.64
 - [32X-OV](../appendices/bibliography.md#32x-ov): dual SH2's
 - [32X-SUP2](../appendices/bibliography.md#32x-sup2): interrupt corrective action
 - [32X-TB27](../appendices/bibliography.md#32x-tb27): FTOA as IRL0
 - [32X-SVC](../appendices/bibliography.md#32x-svc): §7-3, SH-2 pin wiring
 - [32X-TIA1](../appendices/bibliography.md#32x-tia1): pp.4, 6
+- [D32XR](../appendices/bibliography.md#d32xr): marsnew.c, marshw.c, crt0.s (the watchdog as a profiling clock)
 - [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x0600032E`-`0x06000334`, `0x06000390`-`0x0600039C`, `0x060003C0`-`0x060003DC`

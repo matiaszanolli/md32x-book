@@ -89,7 +89,7 @@ Two sprite colours do not draw anything. Instead they change the brightness of w
 | Palette 3, colour 14 (CRAM entry `$3E`) | Highlight: normal → bright, or shadowed → normal |
 | Palette 3, colour 15 (CRAM entry `$3F`) | Shadow: normal → dark; already dark stays dark |
 
-Sources: [MD-SWM §2.11; MD-TO pp.61, 68; ACC-SDS p.23; PICODRIVE, pico/draw.c] <span class="tag manual">manual</span>. GENVDP gives these two colours the other way round; it is the only source that does, and every emulator follows the manuals ([discrepancy 14](../appendices/discrepancies.md)). What the CRAM entries `$3E` and `$3F` contain makes no difference to the effect [GENVDP §16].
+Sources: [MD-SWM §2.11; MD-TO pp.61, 68; ACC-SDS p.23; PICODRIVE, pico/draw.c] <span class="tag manual">manual</span>. GENVDP gives these two colours the other way round; it is the only source that does, and every emulator follows the manuals. What the CRAM entries `$3E` and `$3F` contain makes no difference to the effect [GENVDP §16].
 
 Operators act on the planes and backdrop under them, and their own priority bit still counts: a low-priority operator sprite cannot darken a high-priority tile [MD-SWM §2.11]. Typical uses are a round shadow under a character, a spotlight, or darkening the playfield behind a pause menu with one large sprite.
 

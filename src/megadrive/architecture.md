@@ -55,7 +55,7 @@ Every clock in the machine is a division of one master crystal:
 | 68000, YM2612 | 7.670454 MHz | 7.600489 MHz | Master ÷ 7 |
 | Z80, PSG | 3.579545 MHz | 3.546895 MHz | Master ÷ 15 |
 
-Sources: the master clock figures are from the 32X Hardware Manual, which lists the Mega Drive's [32X-HWM §3.3, clock]. The 68000 figures are confirmed by the version register description [MD-SWM §4.1]. The ÷ 15 for the Z80 and PSG, and the ÷ 7 for the YM2612, come from the PicoDrive emulator <span class="tag emulator">emulator</span> [PICODRIVE, pico_int.h, sound.c]. Sega's early overview rounds to 8 MHz and 4 MHz [MD-TO, system overview], and the sound manual's YM2612 timer formulas assume 8 MHz [MD-SWM, YM2612 timers]. Charles MacDonald's VDP notes give the master clock as 53.64165 MHz [GENVDP, pinout], but every clock in Sega's manuals follows from the 32X-HWM figures, so that figure is an error <span class="tag manual">manual</span> ([discrepancy #9](../appendices/discrepancies.md)).
+Sources: the master clock figures are from the 32X Hardware Manual, which lists the Mega Drive's [32X-HWM §3.3, clock]. The 68000 figures are confirmed by the version register description [MD-SWM §4.1]. The ÷ 15 for the Z80 and PSG, and the ÷ 7 for the YM2612, come from the PicoDrive emulator <span class="tag emulator">emulator</span> [PICODRIVE, pico_int.h, sound.c]. Sega's early overview rounds to 8 MHz and 4 MHz [MD-TO, system overview], and the sound manual's YM2612 timer formulas assume 8 MHz [MD-SWM, YM2612 timers]. Charles MacDonald's VDP notes give the master clock as 53.64165 MHz [GENVDP, pinout], but every clock in Sega's manuals follows from the 32X-HWM figures, so that figure is an error <span class="tag manual">manual</span>.
 
 Because the 68000 runs at exactly 15/7 the speed of the Z80, the two stay in step. Each one's cycle counts can be converted into the other's with no drift.
 
@@ -123,14 +123,14 @@ The 68000 sees this space at `$A00000`. `$A00000-$A01FFF` is sound RAM, `$A04000
 
 ### The bank window
 
-The window at Z80 `$8000-$FFFF` can show any 32 KB of the 68000's 16 MB. The bank register holds address bits 15-23 of the window's start. It is written one bit at a time: nine single-byte writes to `$6000`, each using only bit 0. The first write carries A15 and the ninth A23, as shipped drivers show; MD-SWM's table has the order backwards ([discrepancy 35](../appendices/discrepancies.md)) [MD-SWM §4.5; PICODRIVE, memory.c]. Only the Z80 may set it [MD-SWM §4.5]. A sound driver that plays samples straight from the cartridge points the window at its sample data and reads through it.
+The window at Z80 `$8000-$FFFF` can show any 32 KB of the 68000's 16 MB. The bank register holds address bits 15-23 of the window's start. It is written one bit at a time: nine single-byte writes to `$6000`, each using only bit 0. The first write carries A15 and the ninth A23, as shipped drivers show; MD-SWM's table has the order backwards [MD-SWM §4.5; PICODRIVE, memory.c]. Only the Z80 may set it [MD-SWM §4.5]. A sound driver that plays samples straight from the cartridge points the window at its sample data and reads through it.
 
 Every access through the window is a 68000 bus cycle. The Z80 waits for the main bus, and the 68000 is held off while the Z80 has it. PicoDrive charges the Z80 about 3.3 extra cycles for each one <span class="tag emulator">emulator</span> [PICODRIVE, memory.c]. Streaming samples this way costs both CPUs a little time on every byte.
 
 Two documented restrictions apply:
 
 - **Right after the 68000 touches `$A100xx`, a Z80 access to the main bus can read or write the wrong data.** That range covers the controller ports. The cure is to stop the Z80 with a bus request around the 68000's access to `$A100xx` <span class="tag manual">manual</span> [MD-SDM §5; MD-TB, Z80/68000 bus access issues].
-- **The Z80 can write work RAM through the window, but not read it.** Sega's manual says only that the window reaches all of 68000 memory [MD-SWM, Z80 mapping], and the 32X bulletin lists work RAM as writable by the Z80 [32X-TI item 15]. Reads of `$E00000` and up return `$FF`, not the RAM's contents: Charles MacDonald saw this on a console [GENDEV-Z80, 17 October 2011], and Genesis Plus GX, PicoDrive and ares do the same <span class="tag emulator">emulator</span> [GPGX, core/genesis.c; PICODRIVE, memory.c; [discrepancy #10](../appendices/discrepancies.md)]. Pass data to the Z80 through its own RAM instead.
+- **The Z80 can write work RAM through the window, but not read it.** Sega's manual says only that the window reaches all of 68000 memory [MD-SWM, Z80 mapping], and the 32X bulletin lists work RAM as writable by the Z80 [32X-TI item 15]. Reads of `$E00000` and up return `$FF`, not the RAM's contents: Charles MacDonald saw this on a console [GENDEV-Z80, 17 October 2011], and Genesis Plus GX, PicoDrive and ares do the same <span class="tag emulator">emulator</span> [GPGX, core/genesis.c; PICODRIVE, memory.c]. Pass data to the Z80 through its own RAM instead.
 
 ## Who can stop whom
 
@@ -160,7 +160,7 @@ Three things to keep in mind:
 
 ## Open questions
 
-- Measure the master clock and the ÷ 15 Z80 divider on a real console ([discrepancy #9](../appendices/discrepancies.md)).
+- Measure the master clock and the ÷ 15 Z80 divider on a real console.
 - Confirm the PAL line count ([discrepancy #8](../appendices/discrepancies.md)).
 - Measure the cost of a Z80 bank window access to both CPUs.
 

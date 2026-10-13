@@ -93,7 +93,7 @@ The text crawl draws its words as many small polygons, and the Slave's cutter ca
 ## Built to survive, mostly
 
 - **A lost command interrupt is retried** by the 68000 after 8,192 polls [SWA, 68000 code at `$086B72`-`$086B9C`].
-- **RV is read correctly, but the reset it guards may never fire.** The VRES handlers read RV from the right byte, unlike After Burner Complete's and Mortal Kombat II's ([discrepancy 33](../appendices/discrepancies.md)). But the handler's reset comes from a timer output that needs a compare value the game never sets, so by Hitachi's rules it never fires ([FTOB and the VRES reset](../sh2/timers.md#ftob-and-the-vres-reset); [discrepancy 22](../appendices/discrepancies.md)). The game never sets RV, so this does not matter in practice.
+- **RV is read correctly, but the reset it guards may never fire.** The VRES handlers read RV from the right byte, unlike After Burner Complete's and Mortal Kombat II's. But the handler's reset comes from a timer output that needs a compare value the game never sets, so by Hitachi's rules it never fires ([FTOB and the VRES reset](../sh2/timers.md#ftob-and-the-vres-reset); [discrepancy 22](../appendices/discrepancies.md)). The game never sets RV, so this does not matter in practice.
 - **It copies Sega's sample slip.** Its VRES handler writes the DMA control value to the wrong register, as Sega's sample did; Rutubo's After Burner Complete writes it correctly ([Handlers in practice](../sh2/intc.md#handlers-in-practice); [Sega's sample code in the games](../appendices/sample-code.md)).
 
 ## What the design teaches

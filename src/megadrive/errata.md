@@ -32,7 +32,7 @@ The deep treatments of the topics live in their own chapters; this page is the i
 
 **Mega Drive Technical Info #9 — the header's `$1F0` field changes (October 6, 1994).** The three region characters at `$1F0` are replaced by one ASCII hexadecimal digit, the operation hardware code, with spaces after it. The digit says which of the four machine types (domestic or overseas, NTSC or PAL, read from `$A10001`) the program runs on, `F` meaning all of them; Sega checked it at submission, and it applies to the 32X as well [MD-TB, MD Tech Info #9]. Still matters for new ROM headers; see [Mega Drive ROM header and checksum](../howto/md-header.md).
 
-**The address checker (October 28, 1994).** Not a bulletin but the specification of Sega's checking tool. It watches for access to prohibited areas and for register misuse, sees only the code that actually runs, and finds no bugs of any other kind [MD-TB, address checker]. Its memory map is cited in this book for what Sega considered legal (for example the 32X ID location, [discrepancy 2](../appendices/discrepancies.md)).
+**The address checker (October 28, 1994).** Not a bulletin but the specification of Sega's checking tool. It watches for access to prohibited areas and for register misuse, sees only the code that actually runs, and finds no bugs of any other kind [MD-TB, address checker]. Its memory map is cited in this book for what Sega considered legal (for example the [32X ID location](../32x/architecture.md#at-power-on-aden--0)).
 
 ## Standards and paperwork
 

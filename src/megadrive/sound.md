@@ -28,7 +28,7 @@ Sega's manuals and bulletins add these rules. [Z80 bus control](z80.md) has the 
 
 **Getting at the Z80's side.** The 68000 must hold the Z80 bus to touch sound RAM or the YM2612. It writes `$0100` to `$A11100`, then waits until bit 8 of `$A11100` reads 0, then makes its accesses and writes `$0000` to release the bus [MD-SWM §4.4]. Use byte accesses for everything in the Z80 area, the YM2612 included [MD-SWM §4.5]. The PSG needs no bus request from either CPU. If both CPUs write it, though, they have to agree who writes when [MD-SWM, sound software manual §IV].
 
-The sound manual bound into the same document describes the bus status bit the other way round: 1 for "the 68000 can access" <span class="tag disputed">disputed</span> ([discrepancy 15](../appendices/discrepancies.md)). Shipped code settles it. Aerobiz Supersonic and d32xr both wait for the bit to read 0 [AB-DISASM, Z80_RequestBus.asm; D32XR, src-md/crt0.s].
+The sound manual bound into the same document describes the bus status bit the other way round: 1 for "the 68000 can access". Shipped code settles it. Aerobiz Supersonic and d32xr both wait for the bit to read 0 [AB-DISASM, Z80_RequestBus.asm; D32XR, src-md/crt0.s].
 
 **Starting the Z80.** The Z80 is held in reset at power-on [MD-SWM §4.4]. Load its program while it is held in reset with the bus requested, then release the reset and the bus. Resetting the Z80 also resets the YM2612 [MD-SWM, sound software manual §II.1]. Aerobiz's start-up routine follows this order: mask interrupts, request the bus and assert reset, copy its 5,458-byte driver into sound RAM byte by byte, then release reset and bus [AB-DISASM, Z80_SoundInit.asm].
 

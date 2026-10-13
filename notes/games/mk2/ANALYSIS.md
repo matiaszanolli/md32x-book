@@ -136,7 +136,7 @@ Main loop `0x0600051A`: wait for the frame counter, flip FS, then call a handler
 ## System registers (checked 2026-10-04)
 
 - Master: byte `$80` to `0x20004000` (FM), then byte `$0A` (V, CMD) to `0x20004001` at `0x060002B6`. Slave: PWM set-up (cycle `$413`, control `$0105`), then byte `$01` (PWM) at `0x0600516C`. No H interrupt.
-- VRES handler (`0x06000350`): clears VRES, then `mov.b @(6,gbr),r0` / `tst #1` reads bit 8 of `0x20004006`, not RV; same slip as After Burner Complete. Book: `src/32x/registers.md`, discrepancy 33.
+- VRES handler (`0x06000350`): clears VRES, then `mov.b @(6,gbr),r0` / `tst #1` reads bit 8 of `0x20004006`, not RV; same slip as After Burner Complete. Book: `src/32x/registers.md`, `src/32x/bugs.md` (Reset while RV = 1; was discrepancy 33, settled and removed 2026-10-13).
 - No 68000 write sets RV and no reference to `$A130xx` (32 Mbit cartridge, so TI item 8's `$A130F1` initialisation is skipped). Book: `src/32x/bugs.md`.
 
 ## ProPack check (9 October 2026)

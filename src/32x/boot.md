@@ -172,7 +172,7 @@ The Slave sets up its bus controller and cache the same way, then polls `$A15120
 Two consequences:
 
 - **Do not let your Master code overwrite `$A15120` early.** If the Master replaces `M_OK` before the Slave has read it, the Slave waits forever. Leave it to the 68000, which only changes it after it has seen both `M_OK` and `S_OK` (see [the handshake](#the-handshake-into-your-code)).
-- The Slave never computes the checksum. Its boot ROM has no code for it, and the manual's flowchart for the Slave has no such step. The text transcriptions of the manual wrongly add one [32X-HWM §5.1 Figure 5.3 p.83; VRD-NOTES, 32X BIOS dump; [discrepancy #6](../appendices/discrepancies.md)].
+- The Slave never computes the checksum. Its boot ROM has no code for it, and the manual's flowchart for the Slave has no such step. The text transcriptions of the manual wrongly add one [32X-HWM §5.1 Figure 5.3 p.83; VRD-NOTES, 32X BIOS dump].
 
 ## The security check
 

@@ -67,7 +67,7 @@ Sources: [MD-TO pp.22-26; MD-SWM §2.4-2.5; GENVDP §6, §17]. See [Registers an
 
 Interrupt levels: VRES 14, V 12, H 10, CMD 8, PWM 6.
 
-Sources: [32X-HWM §3.2.1-3.2.2 pp.19-31; 32X-OV pp.34-43]. See [System registers](../32x/registers.md), [discrepancy 32](discrepancies.md) for bits 15-14 of `0x20004006` and [discrepancy 33](discrepancies.md) for reading RV.
+Sources: [32X-HWM §3.2.1-3.2.2 pp.19-31; 32X-OV pp.34-43]. See [System registers](../32x/registers.md), [discrepancy 32](discrepancies.md) for bits 15-14 of `0x20004006` and [Reset while RV = 1](../32x/bugs.md#reset-while-rv--1) for reading RV.
 
 ## 32X VDP
 

@@ -39,7 +39,7 @@ Sources: widths and contents from the boot ROM settings above and [32X-HWM §3.1
 
 With idle cycles set to zero, accesses to different areas follow each other directly, except that the BSC always puts one idle clock between a read and a following write [SH7604 §7.9].
 
-The programmed wait in WCR is the floor: every access to areas 0-2 takes at least 3 clocks. Anything slower is the 32X holding the SH-2's WAIT line until the data is ready, which is why the frame buffer and ROM figures are ranges. Sega's own note says the boot ROM leaves only the external wait in use, but the ROMs program one wait as well, and the manual's constant 1-wait figures for the boot ROM and system registers agree with the ROMs <span class="tag disputed">disputed</span> [32X-HWM §4.4 p.77; VRD-NOTES, 32X BIOS dump; [discrepancy 17](../appendices/discrepancies.md)].
+The programmed wait in WCR is the floor: every access to areas 0-2 takes at least 3 clocks. Anything slower is the 32X holding the SH-2's WAIT line until the data is ready, which is why the frame buffer and ROM figures are ranges. Sega's own note says the boot ROM leaves only the external wait in use, but the ROMs program one wait as well, and the manual's constant 1-wait figures for the boot ROM and system registers agree with the ROMs [32X-HWM §4.4 p.77; VRD-NOTES, 32X BIOS dump].
 
 ## What a 16-bit bus costs
 

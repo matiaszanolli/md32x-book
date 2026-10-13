@@ -96,8 +96,8 @@ These are the questions where a console result would change code or settle a dis
 | What does H32 look like under a visible 32X layer? | A test card in both widths, photographed | [Discrepancy 26](../appendices/discrepancies.md) |
 | Which Mega Drive pixels let the 32X through? | Use the backdrop's palette entry inside a tile | [Discrepancy 27](../appendices/discrepancies.md) |
 | Does PWM keep draining with both outputs off, and what does bit 4 of its control register do? | Watch the FIFO flags with outputs off; listen with bit 4 set | [Discrepancies 23, 31](../appendices/discrepancies.md) |
-| Where does a Mega Drive DMA source wrap: 64 KB or 128 KB? | DMA across a boundary from a marked source | [Discrepancy 13](../appendices/discrepancies.md) |
-| Does the YM2612's CSM bit exist? | Set it and listen for the timer-driven key-on | [Discrepancy 36](../appendices/discrepancies.md) |
+| Does a Mega Drive DMA source wrap at 128 KB on a console of known model, as two developers' tests found? | DMA across a boundary from a marked source | [Do not cross a boundary](../megadrive/vdp-dma.md#do-not-cross-a-boundary) |
+| Is mode `10` in `$27` CSM on a console of known model, as third-party tests found? | Set it and listen for the timer-driven key-on | [Channel 3's special mode](../megadrive/ym2612.md#channel-3s-special-mode) |
 
 Every chapter's own open-questions section lists the rest.
 
