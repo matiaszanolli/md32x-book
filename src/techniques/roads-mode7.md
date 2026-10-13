@@ -69,6 +69,18 @@ The homebrew notes' Mode 7 racer makes the same moves in its floor loop: a table
 
 Keep texture sizes powers of two. Then wrapping is a mask, a row is a shift, and a 16.16 coordinate needs only `SWAP.W` and `AND` to become an index.
 
+### A tiled floor (BC Racers)
+
+BC Racers draws its race track as a textured ground made of tiles, which lets a small set of pictures cover a whole track [BCR, SH-2 code at `0x06002358`-`0x060025FE`]:
+
+- **64 rows, four hardware divides each.** Row *i*'s distance is a constant over 2 + 16*i*; the divides give the texture position at the left edge and the step per pixel. The Master works out rows 0-31 while the Slave works out 32-63 ([Division unit](../sh2/divu.md)).
+- **A map of tiles.** The track is a map of 128 × 128 cells of 32 × 32 texels, and each cell names one of 64 tiles and one of 8 orientations: four rotations, mirrored or not. A table of 2 KB per orientation lists the tile's 1,024 positions in the turned order, so the inner loop turns a tile by reading through the table instead of changing its steps.
+- **Half the horizontal resolution,** as in d32xr: 160 texels a line, each written twice as one word.
+- **Haze from a table.** The 8 lines nearest the horizon pass each texel through a 256-byte colour table of their own that darkens it.
+- **32 instructions a texel,** with five memory reads: the map cell (from spare frame-buffer memory), two words of the cell's tile record (SDRAM), the offset (the orientation table) and the texel.
+
+The texels and the orientation tables stay in the cartridge and are read through the cache. A simulation of one picture's ground, over the game's own data and a model of the cache, counts 0.23 line fills from the cartridge per texel in the half near the horizon and 0.10 in the near half: 77,000-163,000 clocks for the far half at the manual's 64 to 136 clocks a fill, against about 14,000 if the same lines came from SDRAM [BOOK-TOOLS, groundsim.py]. The rows near the horizon cost more, because one pixel there crosses more of the texture. The game still splits the lines between the CPUs by count. See [Case study: BC Racers](../patterns/case-study-bcracers.md#the-ground).
+
 ## Roads
 
 ### A road from segments
@@ -113,11 +125,14 @@ The ground changes slowly from one line to the next. The homebrew racer draws on
 
 After Burner Complete's backgrounds are mostly auto fill, and upstream PicoDrive completes fills instantly while holding FEN for the fill's time. The time the profiles show waiting on FEN, in the split fills and in the runway routine alike, is therefore set by the emulator's model of FEN, not by the fills ([Auto fill](../32x/vdp.md#auto-fill)). The homebrew measurements were all taken in PicoDrive.
 
+A floor that reads its texture through the cache from the cartridge is where stock PicoDrive is least like a console, since it charges nothing for a cache miss. BC Racers' race runs at 30 pictures a second there and at 14 in a build that models the cache and the manual's wait states <span class="tag emulator">emulator</span> ([Where the time goes](../patterns/case-study-bcracers.md#where-the-time-goes)).
+
 ## What to take away
 
 - A flat ground has one distance per line: put it in a table and nothing per pixel needs a divide.
 - Flat colour is one or two fills per line, and a tilting horizon is a table of split points.
 - A textured floor needs no multiply or divide per pixel: about ten instructions in d32xr, with power-of-two textures.
+- Keep the texture in SDRAM if it fits: a texel from the cartridge can cost a 64-136-clock line fill, and the rows near the horizon miss most.
 - Draw a striped road from runs per line: 1/*z* per line steps evenly, a phase per row places it and a running sum added to the phase bends it, and colour groups by depth make the stripes.
 - Draw objects as scaled sprites, pre-drawn from several angles if they must turn.
 - Fill only what the road leaves, and consider drawing every other line.
@@ -125,7 +140,7 @@ After Burner Complete's backgrounds are mostly auto fill, and upstream PicoDrive
 ## Open questions
 
 - How fast is a road bent by the Mega Drive's per-line scroll, under 32X sprites drawn by the SH-2s, compared with a road drawn by an SH-2?
-- How long does d32xr's floor loop take per pixel on a console, with its texel and light look-ups going through the cache?
+- How long does d32xr's floor loop take per pixel on a console, with its texel and light look-ups going through the cache? For BC Racers' loop a simulation gives the cache misses ([A tiled floor](#a-tiled-floor-bc-racers)), but not the console's time.
 - What does After Burner Complete's runway cost on a console, where the waits for FEN before each short run are not set by an emulator's model?
 - What sets the sideways offset in the runway's phase, which was 0 in every picture sampled, and what do the two events do in which stage 13's script differs from stage 5's?
 
@@ -134,4 +149,6 @@ After Burner Complete's backgrounds are mostly auto fill, and upstream PicoDrive
 - [AB32X](../appendices/bibliography.md#ab32x): SH-2 code at `0x0600259C`-`0x060025CA`, `0x06006F1C`-`0x06006FF6`, `0x06007124`-`0x0600717E`, `0x06008280`-`0x060082F6`, `0x06008350`-`0x06008436`, `0x0600379E`-`0x060037C6`; patterns at `0x060084C0`, colour groups at `0x060084A0`; 68000 code at `$BD08`-`$BD22`, `$E5AE`-`$EA94`, `$1EDBE`-`$1EE30`; stage descriptors at `$3D802`; PicoDrive runs and PC profiles of stages 1-2, 5 and 8 (split table, row table and palette read every frame, 8 October 2026)
 - [D32XR](../appendices/bibliography.md#d32xr): r_data.c, r_local.h, r_main.c, r_phase7.c (`R_MapPlane`, `R_DrawPlanes2`), sh2_draw.s
 - [AB-DISASM](../appendices/bibliography.md#ab-disasm): VInt_Handler3.asm (per-line vertical scroll)
+- [BCR](../appendices/bibliography.md#bcr): SH-2 code at `0x06002358`-`0x060025FE`
+- [BOOK-TOOLS](../appendices/bibliography.md#book-tools): groundsim.py
 - [S32X-SKILL](../appendices/bibliography.md#s32x-skill): references/software-3d.md, references/optimization.md, references/pico8-porting.md, references/examples.md

@@ -31,7 +31,7 @@ What follows from that:
 
 ## How games split the work
 
-Six retail games and one of the book's projects (on two screens), by what each VDP draws:
+Seven retail games and one of the book's projects (on two screens), by what each VDP draws:
 
 | Program | PRI | Through bits | Mega Drive draws | 32X draws |
 |---------|-----|--------------|------------------|-----------|
@@ -41,10 +41,11 @@ Six retail games and one of the book's projects (on two screens), by what each V
 | Mortal Kombat II | 0 | All entries but 0 | Arena, energy bars | Fighters, foreground objects, menus |
 | Virtua Fighter | 0 | 246 of 256 entries; 0 and 7-15 without | Sky and sea (plane B, re-sent every picture: about 2,600 bytes, 36% of the 7,380 a frame's blanking allows), HUD (plane A) | Fighters, floor, "FIGHT" and "TIME OVER" banners, "PRESS START BUTTON" |
 | Knuckles' Chaotix | 1 | Entry 0 and 122 others | The level | Characters and some objects |
+| BC Racers | 1 | Entry 0 only | The sky, wherever the 32X leaves colour 0 | Ground, scenery, racers, the panel at the bottom ([Case study](../patterns/case-study-bcracers.md#the-ground)) |
 | Aerobiz Ultimate, world map | 0 | Entry 0 only | Panels and text | The map |
 | Aerobiz Ultimate, SEGA logo | 1, then 0 | | The final logo | The spinning logo |
 
-Sources: [SWA], [MK2], [AB32X], [CHAOTIX], [VF32X, bitmap mode register and palette read in a fight at frames 1500 and 2000], bitmap mode register and palette read in PicoDrive, and 32X frame buffers dumped (SWA at frame 1600, MK2 at frames 900-1700, After Burner Complete at frames 300 and 700 of play, Chaotix at attract frames 4300 and 4400); [32X-ROMSET, Virtua Racing Deluxe, bitmap mode register and palette read at frames 900, 1800, 3000 and 5500 (a race, started with scripted input), planes and sprite table dumped at frame 5499]; [AU-NOTES, disasm/sh2/master/fb.c, disasm/32x/map_screen.asm] <span class="tag emulator">emulator</span>.
+Sources: [SWA], [MK2], [AB32X], [CHAOTIX], [BCR], [VF32X, bitmap mode register and palette read in a fight at frames 1500 and 2000], bitmap mode register and palette read in PicoDrive, and 32X frame buffers dumped (SWA at frame 1600, MK2 at frames 900-1700, After Burner Complete at frames 300 and 700 of play, Chaotix at attract frames 4300 and 4400, BC Racers at race frame 1800); [32X-ROMSET, Virtua Racing Deluxe, bitmap mode register and palette read at frames 900, 1800, 3000 and 5500 (a race, started with scripted input), planes and sprite table dumped at frame 5499]; [AU-NOTES, disasm/sh2/master/fb.c, disasm/32x/map_screen.asm] <span class="tag emulator">emulator</span>.
 
 ### Mega Drive in front: HUDs and cockpits
 

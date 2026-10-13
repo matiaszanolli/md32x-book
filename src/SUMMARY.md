@@ -77,6 +77,7 @@
 - [Case study: After Burner Complete](patterns/case-study-afterburner.md)
 - [Case study: Star Wars Arcade](patterns/case-study-starwars.md)
 - [Case study: the ECCO CinePak demo](patterns/case-study-ecco.md)
+- [Case study: BC Racers](patterns/case-study-bcracers.md)
 
 # Part VI: Techniques
 
